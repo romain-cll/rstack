@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rs-explain</title>
+<!--
+  rs-explain base. Keep the <style>, replace the body.
+
+  Components
+    .rs                    page column (vertical, centred)
+    .rs-head h1 / .rs-sub  title (the question or the takeaway) + one optional line
+    .rs-flow               vertical stack, top → bottom
+    .rs-node               one thing: <b>label</b> + optional <span class="rs-meta">detail</span>
+      .is-key              the one thing that matters (accent)
+      .is-soft             secondary thing (filled, no border)
+    .rs-arrow              vertical connector; optional <span>label</span>
+    .rs-gate               stop point / human decision (alert colour)
+    .rs-group              bounded region; first child .rs-group-label
+    .rs-split              side-by-side branches; style="--cols:3" for three
+      .rs-branch-label     label on top of a branch
+    .rs-loop               small "goes back to …" line
+    .rs-note               short footnote, only if a label alone would mislead
+    .rs-section            one visual; several sections stack with space between
+
+  Tokens follow the host theme when it injects CSS variables (--foreground, --border,
+  --accent, …) and fall back to light/dark defaults otherwise.
+-->
+<style>
+  :root{
+    color-scheme: light dark;
+    --rs-bg: var(--background, #ffffff);
+    --rs-fg: var(--foreground, #18181b);
+    --rs-muted: var(--muted-foreground, #71717a);
+    --rs-line: var(--border, #e4e4e7);
+    --rs-surface: color-mix(in srgb, var(--rs-fg) 6%, transparent);
+    --rs-accent: var(--accent, #2563eb);
+    --rs-alert: var(--warning, #d97706);
+    --rs-radius: var(--radius, 10px);
+    --rs-font: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+    --rs-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --rs-bg: var(--background, #0c0c0e);
+      --rs-fg: var(--foreground, #f4f4f5);
+      --rs-muted: var(--muted-foreground, #a1a1aa);
+      --rs-line: var(--border, #34343a);
+      --rs-accent: var(--accent, #60a5fa);
+      --rs-alert: var(--warning, #f59e0b);
+    }
+  }
+  html{background:var(--rs-bg)}
+  body{margin:0;font-family:var(--rs-font);color:var(--rs-fg);-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+
+  .rs{max-width:640px;margin:0 auto;padding:40px 0 48px}
+  @media (max-width:680px){.rs{padding-inline:16px}}
+  .rs-section + .rs-section{margin-top:72px}
+
+  .rs-head{margin-bottom:40px}
+  .rs-head h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
+  .rs-sub{margin:8px 0 0;font-size:14px;color:var(--rs-muted)}
+
+  .rs-flow{display:flex;flex-direction:column;align-items:center;width:100%}
+
+  .rs-node{width:100%;max-width:400px;padding:14px 18px;border:1px solid var(--rs-line);
+    border-radius:calc(var(--rs-radius) + 4px);display:flex;justify-content:space-between;
+    align-items:baseline;gap:16px}
+  .rs-node b{font-size:15px;font-weight:600}
+  .rs-meta{font-size:13px;color:var(--rs-muted);text-align:right}
+  .rs-node.is-key{border:1.5px solid var(--rs-accent)}
+  .rs-node.is-key b{color:var(--rs-accent)}
+  .rs-node.is-soft{background:var(--rs-surface);border-color:transparent}
+
+  .rs-arrow{position:relative;width:1.5px;height:36px;margin:4px 0 8px;
+    background:color-mix(in srgb,var(--rs-muted) 45%,transparent)}
+  .rs-arrow::after{content:"";position:absolute;bottom:0;left:50%;width:7px;height:7px;
+    border-right:1.5px solid var(--rs-muted);border-bottom:1.5px solid var(--rs-muted);
+    transform:translate(-50%,0) rotate(45deg);opacity:.7}
+  .rs-arrow > span{position:absolute;left:16px;top:50%;transform:translateY(-50%);
+    white-space:nowrap;font-size:12px;color:var(--rs-muted)}
+
+  .rs-gate{display:flex;align-items:center;gap:12px;padding:6px 0;font-size:13px;color:var(--rs-muted)}
+  .rs-gate::before{content:"";width:12px;height:12px;border-radius:2px;background:var(--rs-alert);transform:rotate(45deg)}
+
+  .rs-group{width:100%;padding:20px 20px 24px;border:1px dashed var(--rs-line);
+    border-radius:calc(var(--rs-radius) + 8px);display:flex;flex-direction:column;align-items:center}
+  .rs-group-label{align-self:flex-start;margin-bottom:20px;font-size:12px;color:var(--rs-muted)}
+  .rs-group-label code{font-family:var(--rs-mono);font-size:13px;font-weight:600;color:var(--rs-accent);margin-right:6px}
+
+  .rs-split{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:20px;width:100%;max-width:440px}
+  .rs-branch-label{margin-bottom:10px;font-family:var(--rs-mono);font-size:12px;color:var(--rs-muted)}
+
+  .rs-loop{margin-top:12px;font-size:12px;color:var(--rs-muted)}
+  .rs-note{max-width:400px;margin:40px auto 0;font-size:13px;line-height:1.5;color:var(--rs-muted);text-align:center}
+</style>
+</head>
+<body>
+<main class="rs">
+
+  <!-- Example: replace everything inside <main>. -->
+  <section class="rs-section">
+    <header class="rs-head">
+      <h1>From request to merge</h1>
+      <p class="rs-sub">Two moments where you decide. Everything else runs on its own.</p>
+    </header>
+
+    <div class="rs-flow">
+      <div class="rs-group">
+        <div class="rs-group-label"><code>/rs-plan</code>with you</div>
+        <div class="rs-flow">
+          <div class="rs-node"><b>Spec</b><span class="rs-meta">story · criteria</span></div>
+          <div class="rs-arrow"></div>
+          <div class="rs-node"><b>Technical plan</b><span class="rs-meta">tasks · tests</span></div>
+          <div class="rs-arrow"></div>
+          <div class="rs-node is-soft"><b>Definition of Ready</b></div>
+        </div>
+      </div>
+
+      <div class="rs-arrow"></div>
+      <div class="rs-gate">you validate</div>
+      <div class="rs-arrow"></div>
+
+      <div class="rs-group">
+        <div class="rs-group-label"><code>/rs-build</code>without you</div>
+        <div class="rs-flow">
+          <div class="rs-node"><b>tester</b><span class="rs-meta">red tests</span></div>
+          <div class="rs-arrow"><span>tests frozen</span></div>
+          <div class="rs-node is-key"><b>dev</b><span class="rs-meta">green · refactor</span></div>
+          <div class="rs-arrow"></div>
+          <div class="rs-node"><b>reviewer</b><span class="rs-meta">verdict</span></div>
+          <div class="rs-arrow"></div>
+          <div class="rs-split">
+            <div class="rs-flow"><div class="rs-branch-label">OK</div><div class="rs-node is-soft"><b>continue</b></div></div>
+            <div class="rs-flow"><div class="rs-branch-label">KO</div><div class="rs-node is-soft"><b>back to dev</b><span class="rs-meta">max 2</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rs-arrow"></div>
+
+      <div class="rs-group">
+        <div class="rs-group-label"><code>/rs-ship</code>automatic</div>
+        <div class="rs-flow">
+          <div class="rs-node"><b>Definition of Done</b></div>
+          <div class="rs-arrow"></div>
+          <div class="rs-node"><b>Pull request</b></div>
+        </div>
+      </div>
+
+      <div class="rs-arrow"></div>
+      <div class="rs-gate">you merge</div>
+    </div>
+  </section>
+
+</main>
+</body>
+</html>
