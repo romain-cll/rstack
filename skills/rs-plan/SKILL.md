@@ -74,7 +74,7 @@ On ok:
 
 1. Move each open decision, as settled, to "Decisions" with today's date; remove "Open decisions".
 2. Set `status: ready`.
-3. Tell the user the next step in one line: `/rs-build <slug>` — it opens its own workspace, so it can run alongside other features.
+3. Tell the user the next step in one line: `/rs-build <slug>`, here: it builds in this workspace.
 
 Then stop.
 

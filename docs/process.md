@@ -20,11 +20,13 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 | Skill | With you? | Does |
 |---|---|---|
 | `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate. |
-| `/rs-build` | no | opens its own workspace, then tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
+| `/rs-build` | no | builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
 | `/rs-ship` | no | checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
 Two gates, no more: validating the spec and the plan is one decision, merging is the other.
+
+**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature, then run `/rs-plan` and `/rs-build` in it: that is how several features build side by side.
 
 ## Roles
 
@@ -67,14 +69,14 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build
 | `reviewed` | `/rs-build` | reviewer said OK |
 | `shipped` | `/rs-ship` | pull request open |
 
-**Where the spec lives over time.** `/rs-plan` writes it in your current checkout without committing. `/rs-build` opens the feature's workspace (branch `feat/<slug>` + worktree), moves the spec there and commits it first. From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file in your checkout: invisible to the team, and wiped by `git clean`.
+**Where the spec lives over time.** `/rs-plan` writes it in the feature's workspace without committing. `/rs-build` commits it first, on the workspace's branch (`feat/<slug>` if it starts from the default branch). From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file: invisible to the team, and wiped by `git clean`.
 
 ## Portability
 
 Supported host today: Claude Code. OpenCode, Hermes and Codex come later, one at a time, each with full support (skills, agents, guards), not just its skills.
 
 - **Portable core**: `skills/*/SKILL.md` follow the open Agent Skills format; role prompts are plain Markdown.
-- **Claude Code adapter**: agent frontmatter (model, tools, per-role hooks), guardrail hooks, `/rs-build` as a deterministic workflow, a mod that shows the state of every feature in flight.
+- **Claude Code adapter**: agent frontmatter (model, tools, per-role hooks), guardrail hooks, a mod that shows the state of every feature in flight.
 - **Hosts without subagents**: the skill plays the roles one after the other. Guardrails then become instructions only: weaker, still usable.
 
 OpenCode already reads `~/.claude/skills`: once rstack is installed, it sees the skills without the agents and guards. That is not supported; `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` turns it off.
@@ -84,7 +86,7 @@ OpenCode already reads `~/.claude/skills`: once rstack is installed, it sees the
 ```
 skills/
 ├── rs-plan/
-├── rs-build/      (next)
+├── rs-build/
 ├── rs-ship/       (next)
 └── rs-explain/
 agents/            rs-tester, rs-dev, rs-reviewer (Claude Code format)
@@ -106,4 +108,4 @@ Everything is a symlink to the repo, so an edit or a `git pull` is live everywhe
 
 ## Not now
 
-Bug fixing (`/rs-fix`), retrospectives, project setup, the state mod, hosts other than Claude Code: each in its own time.
+Bug fixing (`/rs-fix`), retrospectives, project setup, the state mod, hosts other than Claude Code, `/rs-build` as a deterministic workflow: each in its own time.
