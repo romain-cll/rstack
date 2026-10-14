@@ -20,11 +20,13 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 | Skill | With you? | Does |
 |---|---|---|
 | `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate. |
-| `/rs-build` | no | opens the feature's own workspace and builds there: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
+| `/rs-build` | no | builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
 | `/rs-ship` | no | checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
 Two gates, no more: validating the spec and the plan is one decision, merging is the other.
+
+**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature, then run `/rs-plan` and `/rs-build` in it: that is how several features build side by side.
 
 ## Roles
 
@@ -67,13 +69,12 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build
 | `reviewed` | `/rs-build` | reviewer said OK |
 | `shipped` | `/rs-ship` | pull request open |
 
-**Where the spec lives over time.** `/rs-plan` writes it in your current checkout without committing. `/rs-build` opens the feature's workspace (branch `feat/<slug>` in a Superset workspace, else a git worktree), moves the spec there and commits it first. From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file in your checkout: invisible to the team, and wiped by `git clean`.
+**Where the spec lives over time.** `/rs-plan` writes it in the feature's workspace without committing. `/rs-build` commits it first, on the workspace's branch (`feat/<slug>` if it starts from the default branch). From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file: invisible to the team, and wiped by `git clean`.
 
 ## Portability
 
 - **Core, any host** (Claude Code, Codex, Hermes…): `skills/*/SKILL.md` follow the open Agent Skills format; role prompts are plain Markdown.
 - **Claude Code adapter**: agent frontmatter (model, tools, per-role hooks), guardrail hooks, a mod that shows the state of every feature in flight.
-- **Superset**: each feature gets its own Superset workspace. `/rs-build` waits for the workspace setup, then starts an agent there that runs the build, so features build side by side. Without Superset, a git worktree next to the repo, built in the current session.
 - **Hosts without subagents**: the skill plays the roles one after the other. Guardrails then become instructions only: weaker, still usable.
 
 ## Repository layout
