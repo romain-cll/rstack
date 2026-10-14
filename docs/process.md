@@ -73,9 +73,13 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build
 
 ## Portability
 
-- **Core, any host** (Claude Code, Codex, Hermes…): `skills/*/SKILL.md` follow the open Agent Skills format; role prompts are plain Markdown.
+Supported host today: Claude Code. OpenCode, Hermes and Codex come later, one at a time, each with full support (skills, agents, guards), not just its skills.
+
+- **Portable core**: `skills/*/SKILL.md` follow the open Agent Skills format; role prompts are plain Markdown.
 - **Claude Code adapter**: agent frontmatter (model, tools, per-role hooks), guardrail hooks, a mod that shows the state of every feature in flight.
 - **Hosts without subagents**: the skill plays the roles one after the other. Guardrails then become instructions only: weaker, still usable.
+
+OpenCode already reads `~/.claude/skills`: once rstack is installed, it sees the skills without the agents and guards. That is not supported; `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` turns it off.
 
 ## Repository layout
 
@@ -104,4 +108,4 @@ Everything is a symlink to the repo, so an edit or a `git pull` is live everywhe
 
 ## Not now
 
-Bug fixing (`/rs-fix`), retrospectives, project setup, the state mod, `/rs-build` as a deterministic workflow: each in its own time.
+Bug fixing (`/rs-fix`), retrospectives, project setup, the state mod, hosts other than Claude Code, `/rs-build` as a deterministic workflow: each in its own time.
