@@ -21,7 +21,7 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 |---|---|---|
 | `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate. |
 | `/rs-build` | no | builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
-| `/rs-ship` | no | checks the Definition of Done, opens the pull request. The merge is yours. |
+| `/rs-ship` | no | rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
 Two gates, no more: validating the spec and the plan is one decision, merging is the other.
@@ -57,7 +57,7 @@ The state is in the spec's frontmatter:
 status: ready        # draft → ready → red → green → reviewed → shipped
 owner: Romain        # who planned it
 branch: feat/<slug>  # set by /rs-build
-red: a1b2c3d         # commit of the red tests, set by /rs-build
+red: a1b2c3d         # commit of the red tests, set by /rs-build, updated by /rs-ship after a rebase
 ```
 
 | Status | Set by | Means |
@@ -67,7 +67,9 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build
 | `red` | `/rs-build` | failing tests committed, now frozen |
 | `green` | `/rs-build` | implementation passes them |
 | `reviewed` | `/rs-build` | reviewer said OK |
-| `shipped` | `/rs-ship` | pull request open |
+| `shipped` | `/rs-ship` | pull request open (set just before the push) |
+
+The spec also carries what one skill leaves for the next. `## Review notes`: the reviewer's "Worth noting", written by `/rs-build`, put in the pull request by `/rs-ship`. `## Ship failures`: what failed after `/rs-ship` rebased, handed to the dev when `/rs-build` resumes.
 
 **Where the spec lives over time.** `/rs-plan` writes it in the feature's workspace without committing. `/rs-build` commits it first, on the workspace's branch (`feat/<slug>` if it starts from the default branch). From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file: invisible to the team, and wiped by `git clean`.
 
@@ -87,7 +89,7 @@ OpenCode already reads `~/.claude/skills`: once rstack is installed, it sees the
 skills/
 ├── rs-plan/
 ├── rs-build/
-├── rs-ship/       (next)
+├── rs-ship/
 └── rs-explain/
 agents/            rs-tester, rs-dev, rs-reviewer (Claude Code format)
 hooks/             guards used by the agents, installed in ~/.claude/hooks/rstack/
