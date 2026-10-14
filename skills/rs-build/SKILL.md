@@ -78,10 +78,12 @@ Write every status change in the spec as it happens; it goes in the next commit.
        Test command: <command>
        Make these tests pass, following the technical plan.
 
+   The spec has a `## Ship failures` section (a resume after `/rs-ship`) → add `Also fix these failures, found by /rs-ship after a rebase: <the section, verbatim>`.
 2. Read its report:
    - Blockers → stop.
    - Targeted tests, full suite, lint or typecheck not green → send the failures back to the same dev. That's a fix round (section 4).
-3. Set `status: green`, commit: `feat(<slug>): <spec title, lowercase>`.
+   - Ship failures: run their commands yourself (an unmet DoD item: check it). Still failing → back to the same dev, a fix round.
+3. Set `status: green`, remove `## Ship failures` if there is one, commit: `feat(<slug>): <spec title, lowercase>`.
 
 ## 4. Review
 
@@ -90,7 +92,7 @@ Write every status change in the spec as it happens; it goes in the next commit.
        Spec: .rs/features/<slug>.md
        Red commit: <sha> — tests: <files>
 
-2. OK → set `status: reviewed`, commit (the spec, and the reviewer's memory if it changed): `docs(<slug>): mark reviewed`. Go to section 6.
+2. OK → write the reviewer's "Worth noting" verbatim at the end of the spec, under `## Review notes` ("Nothing" if none; an earlier section is replaced): `/rs-ship` puts them in the pull request. Set `status: reviewed`, commit (the spec, and the reviewer's memory if it changed): `docs(<slug>): mark reviewed`. Go to section 6.
 3. KO:
    - an `[upstream]` item → stop;
    - only `[code]` items, fewer than 2 fix rounds → send the "Blocking" items verbatim to the same dev (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, commit `fix(<slug>): address review round <n>`, back to 4.1;
@@ -115,5 +117,5 @@ Two fix rounds per run, whether the failures come from the dev's own report or f
     <Title> — reviewed, <branch>
     Tests    <n> tests, AC1–ACn · red <sha>
     Review   OK after <n> fix round(s)
-    Note     the reviewer's "Worth noting", one line each   (or "nothing")
+    Note     the spec's "Review notes", one line each   (or "nothing")
     Next     /rs-ship <slug>
