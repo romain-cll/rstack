@@ -10,7 +10,7 @@ You turn a `ready` spec into reviewed code on the current branch, without the us
 
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.
 
-Output: the spec, the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`.
+Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`.
 
 ## Talking to the user
 
@@ -22,6 +22,7 @@ Output: the spec, the red tests and the implementation committed on the feature'
 
 - Messages: the project's convention if its instructions set one, else the ones below.
 - Every commit takes all the working tree's changes (`git add -A`): the workspace holds only this feature. A secret or a build artefact shows up in `git status` → don't commit it, stop.
+- Only tests and code go in: the spec and the reviewer's memory stay out of git (section 1).
 - Local only: never push.
 
 `<default>` is the default branch: `git symbolic-ref --short refs/remotes/origin/HEAD`, without `origin/`.
@@ -40,19 +41,24 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 | `reviewed` | nothing to build: tell the user `/rs-ship <slug>` is next |
 | anything else | stop |
 
+**Every start: keep git out.**
+
+- `git check-ignore -q .rs/features/<slug>.md` succeeds. `.rs/.gitignore` missing → create it containing `*`, check again. Still failing → `.rs/` is tracked → stop: untracking it (`git rm -r --cached .rs`, then a commit) is the user's call.
+- `.claude/agent-memory-local/`, the reviewer's memory, is a line of `$(git rev-parse --git-path info/exclude)`. Missing → append it.
+
 **From `ready`.**
 
-1. Only the spec may be uncommitted. Anything else → stop: the build needs a workspace of its own.
+1. Nothing is uncommitted (`git status --porcelain` is empty). Anything → stop: the build needs a workspace of its own.
 2. On `<default>` → `git switch -c feat/<slug>`. On any other branch, build there: the harness opened it for this feature.
-3. Set `branch: <current branch>` in the spec, commit it alone: `docs(<slug>): add the spec`.
+3. Set `branch: <current branch>` in the spec.
 
 **From `red` or `green` (a resumed build).**
 
 - The current branch must be the spec's `branch:`. Otherwise → stop.
 - Uncommitted changes (a run that died) → commit them first: `chore(<slug>): work in progress`.
-- From `red` on, `red:` in the frontmatter is the red commit (missing → stop). The feature's tests are the files of that commit except the spec (`git show --name-only --format= <red>`). Their command is the project's test command on those files.
+- From `red` on, `red:` in the frontmatter is the red commit (missing → stop). The feature's tests are the files of that commit (`git show --name-only --format= <red>`). Their command is the project's test command on those files.
 
-Write every status change in the spec as it happens; it goes in the next commit.
+Write every status change in the spec as it happens. The spec is never committed.
 
 ## 2. Red
 
@@ -67,7 +73,7 @@ Write every status change in the spec as it happens; it goes in the next commit.
 4. Check, don't trust:
    - `git status`: only tests changed (test files, their support and config). Anything else → stop.
    - Run the report's command: the tests written or changed in this phase fail. All green → stop: they test nothing new. On a rework, a changed test the branch's code already satisfies may pass: list it in the final report.
-5. Set `status: red`, commit: `test(<slug>): add the failing tests`. Then write `red: <short sha of that commit>` in the spec and commit it: `docs(<slug>): record the red commit`.
+5. Commit: `test(<slug>): add the failing tests`. Then set `status: red` and `red: <short sha of that commit>` in the spec.
 
 ## 3. Green
 
@@ -92,7 +98,7 @@ Write every status change in the spec as it happens; it goes in the next commit.
        Spec: .rs/features/<slug>.md
        Red commit: <sha> — tests: <files>
 
-2. OK → write the reviewer's "Worth noting" verbatim at the end of the spec, under `## Review notes` ("Nothing" if none; an earlier section is replaced): `/rs-ship` puts them in the pull request. Set `status: reviewed`, commit (the spec, and the reviewer's memory if it changed): `docs(<slug>): mark reviewed`. Go to section 6.
+2. OK → write the reviewer's "Worth noting" verbatim at the end of the spec, under `## Review notes` ("Nothing" if none; an earlier section is replaced): `/rs-ship` puts them in the pull request. Set `status: reviewed`. Go to section 6.
 3. KO:
    - an `[upstream]` item → stop;
    - only `[code]` items, fewer than 2 fix rounds → send the "Blocking" items verbatim to the same dev (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, commit `fix(<slug>): address review round <n>`, back to 4.1;
