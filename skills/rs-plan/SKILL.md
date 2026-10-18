@@ -25,6 +25,7 @@ Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no
 ## 2. Write the spec
 
 - Slug: short, kebab-case. If `.rs/features/<slug>.md` already exists → ask.
+- `.rs/` stays out of git: if `.rs/.gitignore` doesn't exist, create it containing `*`.
 - Write it from the template below, `status: draft`.
 - The spec is written in English, whatever language you speak with the user. Frontmatter keys and status values stay exactly as in the template: tools read them.
 
