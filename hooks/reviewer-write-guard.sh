@@ -9,7 +9,7 @@ read_hook_input
 REAL=$(canonical_path "$HOOK_FILE") || deny "$MESSAGE"
 
 case "$REAL" in
-  */.claude/agent-memory/rs-reviewer/*) exit 0 ;;
+  */.claude/agent-memory-local/rs-reviewer/*) exit 0 ;;
 esac
 
 deny "$MESSAGE"
