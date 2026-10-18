@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
-# Removes rstack from Claude Code: every link in ~/.claude pointing to this repo.
-# Nothing else is touched.
+# Removes rstack from Claude Code: what install.sh copied into ~/.claude, as
+# listed in ~/.claude/.rstack-manifest. Nothing else is touched.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")" && pwd -P)"
 CLAUDE="$HOME/.claude"
+MANIFEST="$CLAUDE/.rstack-manifest"
 removed=0
 
 pretty() { echo "~${1#"$HOME"}"; }
 
 [ $# -eq 0 ] || { echo "usage: $0" >&2; exit 2; }
 
-for entry in "$CLAUDE"/skills/* "$CLAUDE"/agents/* "$CLAUDE/hooks/rstack"; do
-  [ -L "$entry" ] || continue
-  case "$(readlink "$entry")" in
-    "$REPO"/*)
-      rm "$entry"
-      echo "  removed  $(pretty "$entry")"
-      removed=$((removed + 1))
-      ;;
-  esac
-done
+if [ -f "$MANIFEST" ]; then
+  while IFS= read -r rel; do
+    case "$rel" in
+      *..*) continue ;;
+      skills/rs-?* | agents/rs-?*.md | hooks/rstack) ;;
+      *) continue ;;
+    esac
+    [ -e "$CLAUDE/$rel" ] || [ -L "$CLAUDE/$rel" ] || continue
+    rm -rf "$CLAUDE/$rel"
+    echo "  removed  $(pretty "$CLAUDE/$rel")"
+    removed=$((removed + 1))
+  done < "$MANIFEST"
+  rm -f "$MANIFEST" "$MANIFEST.new"
+fi
 
 if [ "$removed" -eq 0 ]; then
   echo "Nothing to remove."
