@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 model: opus
 effort: xhigh
 permissionMode: default
-memory: project
+memory: local
 hooks:
   PreToolUse:
     - matcher: "Edit|Write"

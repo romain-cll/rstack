@@ -49,7 +49,7 @@ Text wasn't enough. You produce a visual that makes the point obvious at a glanc
 ## 5. Render
 
 1. The host has an artifact or HTML-render tool (Artifact in the Claude desktop app, artifacts on claude.ai, `html_render` in T3 Code…) → preview it if the host can, fix what reads badly, then publish it there. Follow the host's layout rules when it states some.
-2. Otherwise → write `.rs/explain/<slug>.html` at the project root (`~/.rs/explain/` outside a project). If `.rs/explain/.gitignore` doesn't exist, create it containing `*`. Open the file: `open` (macOS), `xdg-open` (Linux), `start ""` (Windows). Remote or headless session → just give the path.
+2. Otherwise → write `.rs/explain/<slug>.html` at the project root (`~/.rs/explain/` outside a project). If `.rs/.gitignore` doesn't exist, create it containing `*`. Open the file: `open` (macOS), `xdg-open` (Linux), `start ""` (Windows). Remote or headless session → just give the path.
 3. Neither is possible → a Mermaid diagram in the reply, same rules.
 
 ## 6. Reply

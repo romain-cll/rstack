@@ -43,12 +43,13 @@ Skills talk to you in your language. Specs, agents and reports are written in En
 
 ## Feature state — `.rs/`
 
-`.rs/` lives at the project root and is versioned: it is how a team sees who is building what.
+`.rs/` lives at the project root and stays out of git: rstack commits a feature's tests and code, nothing else. The first skill that writes there creates `.rs/.gitignore` containing `*`, which ignores the folder, itself included; the project's `.gitignore` is left alone.
 
 ```
 .rs/
+├── .gitignore            *
 ├── features/<slug>.md    spec + state, one file per feature
-└── explain/              rendered visuals (git-ignored)
+└── explain/              rendered visuals
 ```
 
 The state is in the spec's frontmatter:
@@ -71,7 +72,9 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build, updated by /rs
 
 The spec also carries what one skill leaves for the next. `## Review notes`: the reviewer's "Worth noting", written by `/rs-build`, put in the pull request by `/rs-ship`. `## Ship failures`: what failed after `/rs-ship` rebased, handed to the dev when `/rs-build` resumes.
 
-**Where the spec lives over time.** `/rs-plan` writes it in the feature's workspace without committing. `/rs-build` commits it first, on the workspace's branch (`feat/<slug>` if it starts from the default branch). From then on the spec travels with its branch and reaches the main branch with the feature's pull request. Until `/rs-build` runs, a `ready` spec is an untracked file: invisible to the team, and wiped by `git clean`.
+**Where the spec lives.** In the feature's workspace, next to the code, and nowhere else: the skills and agents that run there share it through the file, not through git. So a feature is planned, built and shipped in the same workspace. The team gets what it needs from the pull request: `/rs-ship` writes the user story, the acceptance criteria and the review notes into it. Deleting the workspace, or a `git clean -x`, deletes the spec.
+
+The reviewer's memory stays out of git too: `rs-reviewer` keeps it in `.claude/agent-memory-local/rs-reviewer/`, which `/rs-build` adds to `.git/info/exclude` (local to the clone, never committed). Like the spec, it lives in the workspace.
 
 ## Portability
 
@@ -99,7 +102,7 @@ install.sh, uninstall.sh
 
 ## Install
 
-rstack installs once per machine, at the Claude Code level, not per project. A project only holds what rstack produces (`.rs/`) and its own instructions (`AGENTS.md` / `CLAUDE.md`: test and lint commands, Definition of Done).
+rstack installs once per machine, at the Claude Code level, not per project. A project only holds what rstack produces (`.rs/`, out of git) and its own instructions (`AGENTS.md` / `CLAUDE.md`: test and lint commands, Definition of Done).
 
 ```sh
 ./install.sh     # copies skills, agents and hooks into ~/.claude
