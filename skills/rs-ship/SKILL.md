@@ -19,7 +19,7 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 ## Git
 
 - Commit messages and the pull request: the project's convention if its instructions (or a pull request template) set one, else the ones below.
-- You only ever commit the spec (`git add .rs/features/<slug>.md`): you change no code.
+- You commit nothing: you change no code, and the spec stays out of git (`.rs/` is ignored).
 - You push this branch only, to `origin`. Never to `<default>`, never a merge.
 - The project instructions say how to push or open a pull request (push options, labels, pipelines) → follow them.
 
@@ -43,7 +43,7 @@ Check before touching anything. One fails → stop.
 1. No rebase in progress (`git status`): it's the user's or a dead run's, not yours to finish or abort.
 2. The current branch is the spec's `branch:`, and it isn't `<default>`.
 3. No tracked file changed (`git status --porcelain --untracked-files=no` is empty): a change made after the review was never reviewed. Untracked files are left alone, never committed.
-4. `red:` is set. The feature's tests are the files of that commit except the spec (`git show --name-only --format= <red>`).
+4. `red:` is set. The feature's tests are the files of that commit (`git show --name-only --format= <red>`).
 5. The pull request tool, from the host of `git remote get-url origin`: `github.com` → `gh`, `gitlab.com` → `glab`, another host → the one of the two logged in to it. Either way it is installed and logged in (`gh auth status --hostname <host>`, `glab auth status --hostname <host>`).
 
 ## 2. Rebase
@@ -51,7 +51,7 @@ Check before touching anything. One fails → stop.
 1. `git fetch --prune origin`: a remote branch deleted since the last fetch must not linger as `origin/<branch>`.
 2. Branch already on `origin` → its tip was pushed from here: `git rev-parse origin/<branch>` is in `git reflog --format=%H <branch>`. Not in it → someone else pushed to the branch → stop. Compare with the reflog, not with `HEAD`: once rebased, the branch no longer contains what it pushed before.
 3. `git rebase origin/<default>`. Conflict → list the conflicting files (`git diff --name-only --diff-filter=U`), `git rebase --abort`, stop.
-4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec, commit: `docs(<slug>): record the red commit`. None → stop.
+4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec. None → stop.
 
 ## 3. Check
 
@@ -73,7 +73,7 @@ No Definition of Done in the instructions → "none" in the reports.
 
 ## 5. Ship
 
-1. In the spec, tick every acceptance criterion (`- [x]`), remove `## Ship failures` if a stop left one, set `status: shipped`. Commit: `docs(<slug>): mark shipped`. Already `shipped` (a resumed run) → nothing to commit.
+1. In the spec, tick every acceptance criterion (`- [x]`), remove `## Ship failures` if a stop left one, set `status: shipped`. Already `shipped` (a resumed run) → nothing to change.
 2. Push: `git push -u origin <branch>`, with `--force-with-lease --force-if-includes` if the branch is already on `origin`: the rebase rewrote it. The lease refuses if the remote moved since the fetch; `--force-if-includes` also refuses if a background fetch (IDE, harness) picked up someone else's push meanwhile.
 3. A pull request already open for the branch (`gh pr list --head <branch>`, `glab mr list --source-branch <branch>`) → the push updated it, keep it. Otherwise open one to `<default>`, not as a draft:
 
@@ -90,7 +90,6 @@ Body, from the spec and your checks only, nothing invented:
     <the user story>
 
     - <the approach, from the technical plan>
-    - Spec: `.rs/features/<slug>.md`
 
     ## Testing
     - AC1 — <criterion>
@@ -105,9 +104,9 @@ Body, from the spec and your checks only, nothing invented:
 
 ## 6. Stop
 
-- Leave the branch as it is: a rebase that went through and a push that went through stay. The spec is committed as it changes; a change of yours left uncommitted (a commit refused by a hook) → `git restore --staged --worktree .rs/features/<slug>.md`: the next run redoes it.
+- Leave the branch as it is: a rebase that went through and a push that went through stay.
 - A command fails where it shouldn't (fetch, push, pull request) → stop too, its error verbatim in Items.
-- Stopped on a failing suite, lint, typecheck or DoD item → write the Items verbatim at the end of the spec, under `## Ship failures` (an earlier section is replaced), and commit: `docs(<slug>): record the ship failures`. That is how the dev gets them on resume.
+- Stopped on a failing suite, lint, typecheck or DoD item → write the Items verbatim at the end of the spec, under `## Ship failures` (an earlier section is replaced). That is how the dev gets them on resume.
 - Report, then stop:
 
       <Title> — stopped at <start|rebase|check|dod|push|pr>, <branch>
