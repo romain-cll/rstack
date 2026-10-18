@@ -102,11 +102,11 @@ install.sh, uninstall.sh
 rstack installs once per machine, at the Claude Code level, not per project. A project only holds what rstack produces (`.rs/`) and its own instructions (`AGENTS.md` / `CLAUDE.md`: test and lint commands, Definition of Done).
 
 ```sh
-./install.sh     # links skills, agents and hooks into ~/.claude
-./uninstall.sh   # removes only the links pointing to this repo
+./install.sh     # copies skills, agents and hooks into ~/.claude
+./uninstall.sh   # removes only what install.sh copied
 ```
 
-Everything is a symlink to the repo, so an edit or a `git pull` is live everywhere. Re-run `./install.sh` when a skill or an agent is added, renamed or removed: it links the new ones and drops the stale ones. It never overwrites an existing file. The guards need `jq`.
+Everything is a copy, not a link: an edit, a branch switch or a deleted worktree doesn't reach your projects, which keep the version you installed. Re-run `./install.sh` from the version you want to update: it replaces the copies and drops the skills and agents the repo no longer has. It never touches a file it didn't install; `~/.claude/.rstack-manifest` lists what it did. The guards need `jq`.
 
 ## Not now
 
