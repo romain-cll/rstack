@@ -1,14 +1,14 @@
 ---
 name: rs-plan
-description: Turn a feature request into a ready-to-build spec — user story, testable acceptance criteria, scope, technical plan — validated by the user in a single gate. Use when the user invokes /rs-plan or asks to spec or plan a feature before building it.
+description: Turn a feature request into a ready-to-build spec — user story, testable acceptance criteria, scope, technical plan — validated by the user in a single gate, whose ok starts /rs-build. Use when the user invokes /rs-plan or asks to spec or plan a feature before building it.
 argument-hint: "<feature description>"
 ---
 
 # rs-plan
 
-You turn a feature request into a spec that `/rs-build` can execute without asking anyone anything. You work with the user until the spec is ready, then you stop.
+You turn a feature request into a spec that `/rs-build` can execute without asking anyone anything. You work with the user until the spec is ready, then hand it to `/rs-build`.
 
-Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no tests, no branch, no commit.
+Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no tests, no branch, no commit. Building is `/rs-build`'s job, started by the user's ok.
 
 ## Talking to the user
 
@@ -68,6 +68,7 @@ Present the spec in this shape, nothing more:
     Size        n tasks, n files
     Decide      <question> — recommended: <option>, because …   (or "nothing")
     Risks       …   (or "none")
+    On ok       the spec goes ready and /rs-build starts here, without you
 
 Wait for an explicit ok. Changes requested → update the spec, check the DoR again, present only what changed.
 
@@ -75,9 +76,9 @@ On ok:
 
 1. Move each open decision, as settled, to "Decisions" with today's date; remove "Open decisions".
 2. Set `status: ready`.
-3. Tell the user the next step in one line: `/rs-build <slug>`, here: it builds in this workspace.
+3. Run `/rs-build <slug>`, here. From then on its instructions apply, not these: the user has left.
 
-Then stop.
+An ok that holds the build back ("ok, not now") → stop after 2, with `/rs-build <slug>` as the next step, in one line.
 
 ## Spec template
 
