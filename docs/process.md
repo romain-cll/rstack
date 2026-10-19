@@ -19,14 +19,14 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 
 | Skill | With you? | Does |
 |---|---|---|
-| `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate. |
-| `/rs-build` | no | builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
+| `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate: your ok starts `/rs-build`. |
+| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
 | `/rs-ship` | no | rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
 Two gates, no more: validating the spec and the plan is one decision, merging is the other.
 
-**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature, then run `/rs-plan` and `/rs-build` in it: that is how several features build side by side.
+**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature and run `/rs-plan` in it: your ok builds it there. That is how several features build side by side.
 
 ## Roles
 
@@ -64,7 +64,7 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build, updated by /rs
 | Status | Set by | Means |
 |---|---|---|
 | `draft` | `/rs-plan` | being written with you |
-| `ready` | `/rs-plan` | you validated it |
+| `ready` | `/rs-plan` | you validated it, `/rs-build` starts |
 | `red` | `/rs-build` | failing tests committed, now frozen |
 | `green` | `/rs-build` | implementation passes them |
 | `reviewed` | `/rs-build` | reviewer said OK |
