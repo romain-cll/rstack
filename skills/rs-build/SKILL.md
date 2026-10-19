@@ -1,6 +1,6 @@
 ---
 name: rs-build
-description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), review (rs-reviewer), with at most two fix rounds. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
+description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), review (rs-reviewer), with at most two fix rounds — then ask whether to start /rs-ship or keep working on what the review left. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
 argument-hint: "<slug>"
 ---
 
@@ -12,12 +12,13 @@ The spec is your only input, even when `/rs-plan` launched you at the end of its
 
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.
 
-Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`.
+Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`, which the end of the build offers to start (section 7).
 
 ## Talking to the user
 
 - Speak the user's language. Specs, agent prompts and commit messages stay in English.
 - The user launches you, with their ok at `/rs-plan`'s gate or by hand, and leaves. Once the build has started, never ask a question: whatever needs them stops the build (section 5).
+- The end of the build is the exception: ship, or continue on what the review left (section 7).
 - Report what happened and what's next. No narration.
 
 ## Commits
@@ -120,10 +121,37 @@ Two fix rounds per run, whether the failures come from the dev's own report or f
 
   How to resume, by what gets fixed: criteria, or a test that's wrong or trivial → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
 
+A stop at 4.3, on the reviewer's blocking items (an `[upstream]` item, or 2 fix rounds done) → section 7 after the report. Any other stop ends here.
+
 ## 6. Done
 
     <Title> — reviewed, <branch>
     Tests    <n> tests, AC1–ACn · red <sha>
     Review   OK after <n> fix round(s)
     Note     the spec's "Review notes", one line each   (or "nothing")
-    Next     /rs-ship <slug>
+
+Then section 7.
+
+## 7. Ship or continue
+
+The build is over and the user may be back: one question decides what's next. Use the host's question tool if it has one.
+
+| The review left | Ask | Options |
+|---|---|---|
+| nothing | Ship it now? | ship (recommended) · not now |
+| notes ("Worth noting") | Ship, or continue on the notes? | ship, the notes go in the pull request (recommended) · continue on them |
+| blocking items (a stop) | Continue on the blocking items, or ship anyway? | continue on them (recommended) · ship anyway |
+
+To continue, the user may pick only some of the items.
+
+On the answer:
+
+- **Ship** → run `/rs-ship <slug>`, here. From then on its instructions apply, not these.
+- **Not now** → stop, with `/rs-ship <slug>` as the next step, in one line.
+- **Ship anyway** → write `## Review notes` as in 4.2, from the last review's "Worth noting", then add each blocking item verbatim, prefixed `Blocking, shipped anyway by <git config user.name>:`: the pull request shows them. Set `status: reviewed`, then as **Ship**. `/rs-ship` still runs its own checks: a red suite or changed tests stop it all the same.
+- **Continue** → once the picked items are handed over, the build goes on without the user, its fix rounds counted from zero again. By item:
+  - a note that changes behaviour needs a test first: it's a new criterion, handle it as an `[upstream]` item;
+  - `[upstream]` items: the spec, the plan and the tests are the user's call, not the dev's. Settle each one with the user now, questions grouped, with options and your recommendation. Update the spec, set the status as section 5's "How to resume" says, and start again at section 1. The `[code]` items picked, if any, go to the dev with the 3.1 prompt: `Also fix these review items: <items, verbatim>`;
+  - the other notes and `[code]` items: set `status: green`, so that a run that dies resumes at the review. Add each note under `## Decisions`, `<YYYY-MM-DD> — also address, from the review: <note> (validated by <git config user.name>)`: the next reviewer counts it in scope. Then a fix round as in 4.3, the notes sent under `Also address these review notes, asked by the user:`, committed as `fix(<slug>): address the review notes` when there are only notes.
+
+  Once the review has spoken again, the build ends on this question again.

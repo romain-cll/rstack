@@ -34,7 +34,7 @@ Read your memory: problems already seen repeatedly in this project are checked f
 2. **Criteria coverage**: every acceptance criterion has at least one test that really checks the behaviour described (not a trivial or empty test).
 3. **Execution**: run the full suite, lint and typecheck yourself. Don't trust the dev's report. All read-only: lint without `--fix` (the check-only lint commands from the project instructions, never a lint script that fixes). A lint error is blocking, not yours to fix.
 4. **Definition of Done**: every item of the DoD in the project instructions (`AGENTS.md` / `CLAUDE.md`).
-5. **Scope**: the diff stays within the plan's files. Nothing out of scope, no unplanned dependency.
+5. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. Nothing out of scope, no unplanned dependency.
 6. **Quality**: security, error handling, respect of existing conventions. Real problems only, not personal taste.
 
 # Classification
