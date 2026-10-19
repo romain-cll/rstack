@@ -1,6 +1,6 @@
 ---
 name: rs-ship
-description: Ship a reviewed feature without the user — rebase on the default branch, run the checks and the Definition of Done again, push, open the pull request. Never merges. Use when the user invokes /rs-ship or asks to open the pull request of a feature reviewed by /rs-build.
+description: Ship a reviewed feature without the user — rebase on the default branch, run the checks and the Definition of Done again, push, open the pull request. Never merges. Started by the user's answer at the end of /rs-build. Use when the user invokes /rs-ship or asks to open the pull request of a feature reviewed by /rs-build.
 argument-hint: "<slug>"
 ---
 
@@ -13,7 +13,8 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 ## Talking to the user
 
 - Speak the user's language. Commit messages, the pull request and the spec stay in English.
-- The user launches you and leaves. Once the ship has started, never ask a question: whatever needs them stops the ship (section 6).
+- The user launches you, with their answer at the end of `/rs-build` or by hand, and leaves. Once the ship has started, never ask a question: whatever needs them stops the ship (section 6).
+- The spec and the branch are your only inputs, even when `/rs-build` launched you: nothing from its conversation goes in the pull request.
 - Report what happened and what's next. No narration.
 
 ## Git
