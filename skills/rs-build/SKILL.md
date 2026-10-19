@@ -8,6 +8,8 @@ argument-hint: "<slug>"
 
 You turn a `ready` spec into reviewed code on the current branch, without the user. You orchestrate, the agents do the work: `rs-tester` writes the red tests, `rs-dev` makes them pass, `rs-reviewer` checks. You handle git and the spec's state.
 
+The spec is your only input, even when `/rs-plan` launched you at the end of its conversation: the agents get the prompts below, nothing from that discussion.
+
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.
 
 Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`.
@@ -15,7 +17,7 @@ Output: the red tests and the implementation committed on the feature's branch, 
 ## Talking to the user
 
 - Speak the user's language. Specs, agent prompts and commit messages stay in English.
-- The user launches you and leaves. Once the build has started, never ask a question: whatever needs them stops the build (section 5).
+- The user launches you, with their ok at `/rs-plan`'s gate or by hand, and leaves. Once the build has started, never ask a question: whatever needs them stops the build (section 5).
 - Report what happened and what's next. No narration.
 
 ## Commits
