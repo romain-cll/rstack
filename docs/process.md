@@ -14,19 +14,21 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 ## Flow
 
 ```
-/rs-plan ──▶ ◆ you validate ──▶ /rs-build ──▶ /rs-ship ──▶ ◆ you merge
+/rs-plan ──▶ ◆ you validate ──▶ /rs-build ──▶ ◆ you ship it ──▶ /rs-ship ──▶ ◆ you merge
+                                    ▲               │
+                                    └─ look first ──┘
 ```
 
 | Skill | With you? | Does |
 |---|---|---|
 | `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate: your ok starts `/rs-build`. |
-| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. |
-| `/rs-ship` | no | rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
+| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. Its report ends on a question, in the chat: ship it? Your ok starts `/rs-ship`. A note or a blocking item to look at first → you settle it with the agent, in the chat, and the build applies your decision. |
+| `/rs-ship` | no | started by your ok on `/rs-build`'s report, or by hand. Rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
-Two gates, no more: validating the spec and the plan is one decision, merging is the other.
+Three decisions, no more: the spec and its plan (your ok starts the build), the build's report (your ok ships it), the merge. The first two are a question at the end of a reply, answered in the chat, never through a question tool. A point you want to look at before shipping is settled with you in the chat, never handed straight to an agent; your decision then goes through the dev and a new reviewer, or through the spec when it changes a criterion, the plan or the tests, and the build ends on its report again.
 
-**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature and run `/rs-plan` in it: your ok builds it there. That is how several features build side by side.
+**One feature, one workspace.** Workspaces are your harness's job (Claude Code, Superset, T3 Code…): it opens the worktree and sets it up. rstack never does. Open one per feature and run `/rs-plan` in it: your ok builds it there, your ok on the build's report ships it. That is how several features build side by side.
 
 ## Roles
 
@@ -67,10 +69,10 @@ red: a1b2c3d         # commit of the red tests, set by /rs-build, updated by /rs
 | `ready` | `/rs-plan` | you validated it, `/rs-build` starts |
 | `red` | `/rs-build` | failing tests committed, now frozen |
 | `green` | `/rs-build` | implementation passes them |
-| `reviewed` | `/rs-build` | reviewer said OK |
+| `reviewed` | `/rs-build` | reviewer said OK, or you shipped over its KO |
 | `shipped` | `/rs-ship` | pull request open (set just before the push) |
 
-The spec also carries what one skill leaves for the next. `## Review notes`: the reviewer's "Worth noting", written by `/rs-build`, put in the pull request by `/rs-ship`. `## Ship failures`: what failed after `/rs-ship` rebased, handed to the dev when `/rs-build` resumes.
+The spec also carries what one skill leaves for the next. `## Review notes`: the reviewer's "Worth noting", plus the blocking items you chose to ship anyway, written by `/rs-build`, put in the pull request by `/rs-ship`. `## Ship failures`: what failed after `/rs-ship` rebased, handed to the dev when `/rs-build` resumes.
 
 **Where the spec lives.** In the feature's workspace, next to the code, and nowhere else: the skills and agents that run there share it through the file, not through git. So a feature is planned, built and shipped in the same workspace. The team gets what it needs from the pull request: `/rs-ship` writes the user story, the acceptance criteria and the review notes into it. Deleting the workspace, or a `git clean -x`, deletes the spec.
 

@@ -34,7 +34,7 @@ Input: the spec (`.rs/features/<slug>.md`, sections "Technical plan" and "Accept
 2. Refactor: clean up (duplication, naming) without changing behaviour. Tests stay green.
 3. Check: full suite, lint, typecheck.
 
-On reviewer feedback: handle only the "Blocking" items, then run the full check again.
+On reviewer feedback: handle only the items you're sent (the "Blocking" ones, or the user's decisions on the review), then run the full check again.
 
 # Report (strict format)
 

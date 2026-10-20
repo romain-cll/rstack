@@ -1,6 +1,6 @@
 ---
 name: rs-build
-description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), review (rs-reviewer), with at most two fix rounds. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
+description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), review (rs-reviewer), with at most two fix rounds — then a report that asks whether to ship: the user's ok starts /rs-ship, a point to look at first is settled with them in the chat. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
 argument-hint: "<slug>"
 ---
 
@@ -12,12 +12,13 @@ The spec is your only input, even when `/rs-plan` launched you at the end of its
 
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.
 
-Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`.
+Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`, which the end of the build offers to start (section 7).
 
 ## Talking to the user
 
 - Speak the user's language. Specs, agent prompts and commit messages stay in English.
 - The user launches you, with their ok at `/rs-plan`'s gate or by hand, and leaves. Once the build has started, never ask a question: whatever needs them stops the build (section 5).
+- The end of the build is the exception: the report ends on one question, in plain text, never with a question tool (section 7).
 - Report what happened and what's next. No narration.
 
 ## Commits
@@ -120,10 +121,35 @@ Two fix rounds per run, whether the failures come from the dev's own report or f
 
   How to resume, by what gets fixed: criteria, or a test that's wrong or trivial → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
 
+A stop at 4.3, on the reviewer's blocking items (an `[upstream]` item, or 2 fix rounds done) → section 7 after the report. Any other stop ends here.
+
 ## 6. Done
 
     <Title> — reviewed, <branch>
     Tests    <n> tests, AC1–ACn · red <sha>
     Review   OK after <n> fix round(s)
     Note     the spec's "Review notes", one line each   (or "nothing")
-    Next     /rs-ship <slug>
+    On ok    /rs-ship starts here, without you
+
+    Ship it? Or tell me which note to look at first.   (no note: "Ship it?")
+
+Then section 7.
+
+## 7. Ship or look first
+
+The build is over and the user may be back. Its report ends on the question, in the chat, in the user's language. After a stop at 4.3, add to the stop report:
+
+    On ok    shipped anyway: the blocking items go in the pull request
+
+    Look at these with me first, or ship anyway?
+
+Then wait for the user's answer. By answer:
+
+- **Ok, ship** → run `/rs-ship <slug>`, here. From then on its instructions apply, not these. After a stop at 4.3, first: write `## Review notes` as in 4.2, add each blocking item verbatim, prefixed `Blocking, shipped anyway by <git config user.name>:`, and set `status: reviewed`. `/rs-ship` still runs its own checks: a red suite or changed tests stop it all the same.
+- **Not now** → stop, with `/rs-ship <slug>` as the next step, in one line.
+- **A point to look at first** → work it out with the user, here: what the point means in the code, the options, your recommendation. Don't hand it to an agent yet: the dev may not know either, the decision is the user's. Change nothing until they decide, then by decision:
+  - ship as it is → as **Ok, ship**;
+  - a change in the code → add it under `## Decisions`, `<YYYY-MM-DD> — <decision> (validated by <git config user.name>)`: the next reviewer counts it in scope. Set `status: green`, so that a run that dies resumes at the review. Then a fix round as in 4.3, sending the decisions verbatim under `Apply these decisions, made with the user on the review:`;
+  - a change in behaviour, a criterion, the plan or the tests → update the spec (a change in behaviour is a new criterion: it needs a test first), set the status as section 5's "How to resume" says, and start again at section 1.
+
+  Never change the code yourself in the chat: it would ship without the dev's checks and the reviewer. Once the user has decided, the build goes on without them, its fix rounds counted from zero again, and ends on its report and this question again.
