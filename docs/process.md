@@ -9,6 +9,7 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 - **The spec is the contract.** Agents only see the spec file, never the conversation.
 - **Agents only where isolation pays.** Single-pass work (planning, explaining) runs inside the skill. Work that needs a fresh context or its own guardrails (writing tests, implementing, reviewing) runs in agents.
 - **TDD with frozen tests.** Tests are written red first, committed, then locked: the dev can't touch them.
+- **Tests as low and as few as the criteria allow.** Each criterion at the lowest level that observes it, in one mode unless its result depends on the mode. The plan sets the level, the tester stays within it, the reviewer blocks what goes beyond.
 - **Portable core, host adapters.** Everything that can be plain Markdown is. Host-specific power (hooks, mods, workflows) is layered on top.
 
 ## Flow
