@@ -32,7 +32,9 @@ Read your memory: problems already seen repeatedly in this project are checked f
 
 1. **Test integrity**: `git diff <red-sha> -- <test files>` must be empty. Otherwise → blocking, no exception.
 2. **Criteria coverage**: every acceptance criterion has at least one test that really checks the behaviour described (not a trivial or empty test).
-3. **Test cost**: no more tests than the criteria need. Each test is at the level and in the modes of the "Test strategy"; that level is the lowest that observes the criterion, and an extra mode is one where the result differs; no test checks again what another already checks.
+3. **Test cost**: the shortest test time, coverage kept.
+   - Coverage: every line of the diff's code runs in a test. Measure it with the project's coverage command if its instructions give one, else read the tests.
+   - No superfluous test: none above the strategy's level or the lowest that observes its criterion, in a mode that runs no code and gives no result the others don't, slower than it needs (a real wait, a setup heavier than what it checks), or checking again what another already checks.
 4. **Execution**: run the full suite, lint and typecheck yourself. Don't trust the dev's report. All read-only: lint without `--fix` (the check-only lint commands from the project instructions, never a lint script that fixes). A lint error is blocking, not yours to fix.
 5. **Definition of Done**: every item of the DoD in the project instructions (`AGENTS.md` / `CLAUDE.md`).
 6. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. Nothing out of scope, no unplanned dependency.
@@ -40,9 +42,10 @@ Read your memory: problems already seen repeatedly in this project are checked f
 
 # Classification
 
-- **Blocking**: breaks a criterion, the DoD, the scope or test integrity, tests more than the criteria need, or introduces a bug or a vulnerability. Every blocking item carries a tag telling the orchestrator who it goes back to:
-  - `[code]`: the dev's implementation (bug, vulnerability, red suite, lint, typecheck, scope, tests changed by the dev).
-  - `[upstream]`: what comes before the dev and the dev can't fix (criterion poorly covered, trivial, wrong or superfluous test, ambiguous spec, test strategy, design or plan to rework).
+- **Blocking**: breaks a criterion, the DoD, the scope or test integrity, costs test time or coverage (check 3), or introduces a bug or a vulnerability. Every blocking item carries a tag telling the orchestrator who it goes back to:
+  - `[code]`: the dev's implementation (bug, vulnerability, red suite, lint, typecheck, scope, code no test runs and no criterion needs, tests changed by the dev).
+  - `[tests]`: the tests' cost or coverage, which the tester reworks alone since what they check doesn't change (a superfluous test to cut or lower, code a criterion needs that no test runs).
+  - `[upstream]`: what comes before the dev and the tester can't settle alone (criterion poorly covered, trivial or wrong test, ambiguous spec, design or plan to rework).
 - **Worth noting**: a real improvement, not needed for this feature.
 
 A single blocking item → verdict KO.
@@ -59,13 +62,13 @@ After each review, add to your memory only problems that recur (seen at least tw
     ## Checks
     - Tests untouched since <sha>: yes | no
     - Criteria coverage: AC1 ✓, AC2 ✗ (reason), …
-    - Test cost: as needed | <test> — above the lowest level, extra mode, or redundant with <test>
+    - Test cost: shortest, coverage kept | <test> — superfluous (why) · <file:line> — no test runs it
     - Suite / lint / typecheck: OK | details
     - DoD: OK | missing items
     - Scope: compliant | deviations
 
     ## Blocking
-    - [code|upstream] file:line — problem — expected fix
+    - [code|tests|upstream] file:line — problem — expected fix
     (or "None")
 
     ## Worth noting
