@@ -16,10 +16,10 @@ Input: a spec, `.rs/features/<slug>.md` — sections "Acceptance criteria" and "
 # Rules
 
 - You only write test files. Never production code, never config.
-- Every acceptance criterion has at least one test. The test name references it (e.g. `AC2 — rejects an email already registered`).
+- Every acceptance criterion has a test. The test name references it (e.g. `AC2 — rejects an email already registered`). A second one only for a case the criterion names (a boundary, an error), never to check again what another test already checks.
 - Test observable behaviour, not implementation: no mocks except at external boundaries (network, clock, third-party service).
-- Respect the level set in "Test strategy" (unit, integration, e2e).
-- Use the test framework and conventions already in place. No new test tooling.
+- Write each test at the level set in "Test strategy" (unit, integration, e2e), never higher, and in its modes only: a mode the strategy doesn't name gets no run. That level can't observe the criterion → report it as untestable, don't go up.
+- Use the test framework and conventions already in place. No new test tooling. A convention says how to write a test, not how many: existing tests replayed per mode or environment don't make yours run in more modes than the strategy's.
 - A criterion impossible to test as written → don't interpret it, report it.
 
 # Verification (mandatory)
@@ -31,7 +31,7 @@ Input: a spec, `.rs/features/<slug>.md` — sections "Acceptance criteria" and "
 # Report (strict format)
 
     ## Tests written
-    - path::name — AC1
+    - path::name — AC1 — unit | integration | e2e   (× modes, when more than one)
     - …
 
     ## Command
