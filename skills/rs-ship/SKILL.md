@@ -44,7 +44,7 @@ Check before touching anything. One fails → stop.
 1. No rebase in progress (`git status`): it's the user's or a dead run's, not yours to finish or abort.
 2. The current branch is the spec's `branch:`, and it isn't `<default>`.
 3. No tracked file changed (`git status --porcelain --untracked-files=no` is empty): a change made after the review was never reviewed. Untracked files are left alone, never committed.
-4. `red:` is set. The feature's tests are the files of that commit (`git show --name-only --format= <red>`).
+4. `red:` is set. The feature's tests are the test files (tests, their support and config) the branch has up to that commit: `git diff --name-only --diff-filter=d origin/<default>...<red>`, without the code.
 5. The pull request tool, from the host of `git remote get-url origin`: `github.com` → `gh`, `gitlab.com` → `glab`, another host → the one of the two logged in to it. Either way it is installed and logged in (`gh auth status --hostname <host>`, `glab auth status --hostname <host>`).
 
 ## 2. Rebase
