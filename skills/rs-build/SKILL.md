@@ -59,7 +59,7 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 
 - The current branch must be the spec's `branch:`. Otherwise → stop.
 - Uncommitted changes (a run that died) → commit them first: `chore(<slug>): work in progress`.
-- From `red` on, `red:` in the frontmatter is the red commit (missing → stop). The feature's tests are the files of that commit (`git show --name-only --format= <red>`). Their command is the project's test command on those files.
+- From `red` on, `red:` in the frontmatter is the red commit (missing → stop). The feature's tests are the test files (tests, their support and config) the branch has up to that commit: `git diff --name-only --diff-filter=d origin/<default>...<red>`, without the code. Not just that commit's files: a rework commits only the files it changes. Their command is the project's test command on those files.
 
 Write every status change in the spec as it happens. The spec is never committed.
 
@@ -103,11 +103,19 @@ Write every status change in the spec as it happens. The spec is never committed
 
 2. OK → write the reviewer's "Worth noting" verbatim at the end of the spec, under `## Review notes` ("Nothing" if none; an earlier section is replaced): `/rs-ship` puts them in the pull request. Set `status: reviewed`. Go to section 6.
 3. KO:
-   - an `[upstream]` item → stop;
-   - only `[code]` items, fewer than 2 fix rounds → send the "Blocking" items verbatim to the same dev (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, commit `fix(<slug>): address review round <n>`, back to 4.1;
-   - 2 fix rounds done → stop.
+   - an `[upstream]` item, or 2 fix rounds done → stop;
+   - otherwise a fix round, without the user, the tests first:
+     1. `[tests]` items → launch `rs-tester`:
 
-Two fix rounds per run, whether the failures come from the dev's own report or from the reviewer.
+            Spec: .rs/features/<slug>.md
+            Rework the tests of this feature after review: <files>. The code is there. Don't commit.
+            <the [tests] items, verbatim>
+
+        Check its report and the tree as in 2.3 and 2.4, except that reworked tests may pass. Commit `test(<slug>): rework the tests, review round <n>`, write `red: <its short sha>` in the spec. A reworked test fails → set `status: red`.
+     2. `[code]` items, or reworked tests that fail → send them verbatim to the same dev, with the new red commit and tests if they changed (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, commit `fix(<slug>): address review round <n>`, set `status: green`.
+     3. Back to 4.1.
+
+Two fix rounds per run, whether the failures come from the dev's own report or from the reviewer, and whether the tester, the dev or both fix them.
 
 ## 5. Stop
 
