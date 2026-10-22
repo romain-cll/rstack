@@ -119,7 +119,7 @@ Two fix rounds per run, whether the failures come from the dev's own report or f
       Items    the blocking items, untestable criteria or failures, verbatim
       Resume   what to fix, then /rs-build <slug> here
 
-  How to resume, by what gets fixed: criteria, or a test that's wrong or trivial → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
+  How to resume, by what gets fixed: criteria, the test strategy, or a test that's wrong, trivial or superfluous → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
 
 A stop at 4.3, on the reviewer's blocking items (an `[upstream]` item, or 2 fix rounds done) → section 7 after the report. Any other stop ends here.
 
