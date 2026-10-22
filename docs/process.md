@@ -9,6 +9,7 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 - **The spec is the contract.** Agents only see the spec file, never the conversation.
 - **Agents only where isolation pays.** Single-pass work (planning, explaining) runs inside the skill. Work that needs a fresh context or its own guardrails (writing tests, implementing, reviewing) runs in agents.
 - **TDD with frozen tests.** Tests are written red first, committed, then locked: the dev can't touch them.
+- **Shortest test time, full coverage.** Every criterion and all the code a feature adds run in a test, through the cheapest tests that do it: the lowest level that observes the behaviour, one mode unless another runs code or gives a result the first doesn't, no test that checks again what another does. The plan sets a ceiling, the tester stays under it, the reviewer sends back what costs time or coverage, and the build loops on it without you.
 - **Portable core, host adapters.** Everything that can be plain Markdown is. Host-specific power (hooks, mods, workflows) is layered on top.
 
 ## Flow
@@ -22,7 +23,7 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 | Skill | With you? | Does |
 |---|---|---|
 | `/rs-plan` | yes | clarifies the need, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate: your ok starts `/rs-build`. |
-| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, 2 loops max; KO upstream (spec, plan, tests) stops and comes back to you. Its report ends on a question, in the chat: ship it? Your ok starts `/rs-ship`. A note or a blocking item to look at first → you settle it with the agent, in the chat, and the build applies your decision. |
+| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → reviewer. KO on the code goes back to the same dev, KO on the tests' cost or coverage to the tester, 2 loops max; KO upstream (spec, plan, a wrong test) stops and comes back to you. Its report ends on a question, in the chat: ship it? Your ok starts `/rs-ship`. A note or a blocking item to look at first → you settle it with the agent, in the chat, and the build applies your decision. |
 | `/rs-ship` | no | started by your ok on `/rs-build`'s report, or by hand. Rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
@@ -60,7 +61,7 @@ The state is in the spec's frontmatter:
 status: ready        # draft → ready → red → green → reviewed → shipped
 owner: Romain        # who planned it
 branch: feat/<slug>  # set by /rs-build
-red: a1b2c3d         # commit of the red tests, set by /rs-build, updated by /rs-ship after a rebase
+red: a1b2c3d         # last commit of the tests, set by /rs-build, updated by /rs-ship after a rebase
 ```
 
 | Status | Set by | Means |

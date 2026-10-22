@@ -40,6 +40,8 @@ You are now the architect. Read-only: you change nothing but the spec.
 - A new dependency is an open decision, always with the dependency-free alternative.
 - Designing reveals a hole in the spec → back to the user. Never guess.
 - Web lookups only for the official docs of a library or an API.
+- Tests: the shortest test time that keeps every criterion and all the code the feature adds covered. Each criterion at the lowest level that can observe its result: unit before integration, integration before e2e; e2e only for what only the whole path shows.
+- One mode — a way the code is launched: environment, platform, configuration. Another only where it runs code or gives a result the first doesn't, for the criteria concerned.
 - Fill the "Technical plan" section of the spec.
 
 ## 4. Definition of Ready
@@ -48,7 +50,7 @@ The spec is ready when:
 
 - every criterion is testable: Given / When / Then with an observable result, no vague word ("fast", "intuitive", "user-friendly"…);
 - out of scope is explicit;
-- every criterion is covered by at least one task and has a test level;
+- every criterion is covered by at least one task and has a test level, the lowest that observes it, in one mode unless another runs code or gives a result the first doesn't;
 - every open decision has options and a recommendation;
 - nothing else is left open.
 
@@ -66,6 +68,7 @@ Present the spec in this shape, nothing more:
     Out         …
     Approach    3 lines max
     Size        n tasks, n files
+    Tests       n unit · n integration · n e2e, one mode   (or the modes, and the criteria that need them)
     Decide      <question> — recommended: <option>, because …   (or "nothing")
     Risks       …   (or "none")
     On ok       the spec goes ready and /rs-build starts here, without you
@@ -115,7 +118,8 @@ An ok that holds the build back ("ok, not now") → stop after 2, with `/rs-buil
     1. <task> — covers AC1, AC2
 
     ### Test strategy
-    - AC1 → unit | integration | e2e — what is checked
+    - AC1 → unit | integration | e2e — what is checked   (integration, e2e: why a lower level can't see it)
+    - Modes: one   (or <modes> for AC2, AC5 — what each runs or gives that the others don't)
 
     ### Open decisions
     - <question> — options: A / B — recommended: A, because …
