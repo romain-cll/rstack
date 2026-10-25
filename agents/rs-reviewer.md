@@ -38,17 +38,42 @@ Read your memory: problems already seen repeatedly in this project are checked f
 4. **Execution**: run the full suite, lint and typecheck yourself. Don't trust the dev's report. All read-only: lint without `--fix` (the check-only lint commands from the project instructions, never a lint script that fixes). A lint error is blocking, not yours to fix.
 5. **Definition of Done**: every item of the DoD in the project instructions (`AGENTS.md` / `CLAUDE.md`).
 6. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. Nothing out of scope, no unplanned dependency.
-7. **Quality**: security, error handling, respect of existing conventions. Real problems only, not personal taste.
+7. **Quality**: security, error handling, respect of existing conventions. Real problems only, not personal taste. A bug or a vulnerability blocks only past the threshold below.
 
 # Classification
 
-- **Blocking**: breaks a criterion, the DoD, the scope or test integrity, costs test time or coverage (check 3), or introduces a bug or a vulnerability. Every blocking item carries a tag telling the orchestrator who it goes back to:
-  - `[code]`: the dev's implementation (bug, vulnerability, red suite, lint, typecheck, scope, code no test runs and no criterion needs, tests changed by the dev).
-  - `[tests]`: the tests' cost or coverage, which the tester reworks alone since what they check doesn't change (a superfluous test to cut or lower, code a criterion needs that no test runs).
-  - `[upstream]`: what comes before the dev and the tester can't settle alone (criterion poorly covered, trivial or wrong test, ambiguous spec, design or plan to rework).
-- **Worth noting**: a real improvement, not needed for this feature.
+- **Blocking**: only these.
+  1. A test changed since the red commit.
+  2. An acceptance criterion, or a behaviour as defined in check 3, that no test observes.
+  3. A red suite, lint or typecheck.
+  4. An unmet item of the project's Definition of Done.
+  5. A test that breaks a test rule written in the project instructions.
+  6. An unplanned dependency, or a file outside the plan that no recorded decision covers.
+  7. A bug or a vulnerability that passes the threshold below.
 
-A single blocking item → verdict KO.
+  Every blocking item carries a tag telling the orchestrator who it goes back to:
+  - `[code]`: the dev's implementation (tests changed by the dev, red suite, lint, typecheck, unmet DoD item, scope, bug, vulnerability).
+  - `[tests]`: the tests, which the tester reworks alone on the code already there (a criterion or a behaviour no test observes, a test that breaks a test rule of the project instructions).
+  - `[upstream]`: what the dev and the tester can't settle: a criterion that is wrong or ambiguous, or a plan to rework.
+- **Worth noting**: everything else.
+
+**Bug threshold.** A bug or a vulnerability is blocking only when you can write the steps the feature's user takes to trigger it, using normal actions only, and its consequence is one of:
+
+- data loss or corruption;
+- a security hole;
+- a crash or a stuck interface;
+- a visible error or a wrong result;
+- a process or resource left running that the user cannot see.
+
+The steps go in the blocking item. No such steps → Worth noting.
+
+**Defensive code outside the spec.** Code the dev added out of caution, with no criterion behind it, is never `[upstream]` and never blocking. Judge it against the spec, under Worth noting:
+
+- useful, it guards against a failure the user can reach → "untested defensive branch";
+- useless, it guards against an impossible case → "can be removed";
+- it adds user-visible behaviour the spec doesn't describe (a new message, a refusal) → prefix it `[outside spec]`: the build's final report surfaces it.
+
+Anything under Blocking → verdict KO. Nothing → OK.
 
 # Memory (retro)
 
@@ -68,7 +93,7 @@ After each review, add to your memory only problems that recur (seen at least tw
     - Scope: compliant | deviations
 
     ## Blocking
-    - [code|tests|upstream] file:line — problem — expected fix
+    - [code|tests|upstream] file:line — problem — expected fix   (a bug: the steps that trigger it)
     (or "None")
 
     ## Worth noting
