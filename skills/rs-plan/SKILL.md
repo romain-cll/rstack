@@ -40,7 +40,7 @@ You are now the architect. Read-only: you change nothing but the spec.
 - A new dependency is an open decision, always with the dependency-free alternative.
 - Designing reveals a hole in the spec → back to the user. Never guess.
 - Web lookups only for the official docs of a library or an API.
-- Tests: the shortest test time that keeps every criterion and all the code the feature adds covered. Each criterion at the lowest level that can observe its result: unit before integration, integration before e2e; e2e only for what only the whole path shows.
+- Tests: the shortest test time that keeps every criterion, and every behaviour the feature's user can trigger, observed by a test. A behaviour is a visible result, a refusal, an error message or a change in stored state; defensive code may stay untested. Each criterion at the lowest level that can observe its result: unit before integration, integration before e2e; e2e only for what only the whole path shows.
 - One mode — a way the code is launched: environment, platform, configuration. Another only where it runs code or gives a result the first doesn't, for the criteria concerned.
 - Fill the "Technical plan" section of the spec.
 
