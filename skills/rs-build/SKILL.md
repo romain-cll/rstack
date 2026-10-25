@@ -1,6 +1,6 @@
 ---
 name: rs-build
-description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), review (rs-reviewer), with fix rounds capped across runs — then /rs-ship on an OK review. Only a stop comes back to the user; a stop on the review's blocking items asks, in the chat, whether to look at them first or ship anyway. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
+description: Build a ready spec without the user, in the current workspace — failing tests (rs-tester), implementation (rs-dev), rebase on the default branch, review (rs-reviewer), with fix rounds capped across runs — then /rs-ship on an OK review. Only a stop comes back to the user; a stop on the review's blocking items asks, in the chat, whether to look at them first or ship anyway. Use when the user invokes /rs-build or asks to build a feature whose spec is ready in .rs/features/.
 argument-hint: "<slug>"
 ---
 
@@ -12,7 +12,7 @@ The spec is your only input, even when `/rs-plan` launched you at the end of its
 
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.
 
-Output: the red tests and the implementation committed on the feature's branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`, which the build starts once the review is OK (section 6).
+Output: the red tests and the implementation committed on the feature's branch, up to date with the default branch, and the spec at `status: reviewed`. No push, no pull request: that's `/rs-ship`, which the build starts once the review is OK (section 6).
 
 ## Talking to the user
 
@@ -58,6 +58,7 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 **From `red` or `green` (a resumed build).**
 
 - The current branch must be the spec's `branch:`. Otherwise → stop.
+- A rebase or a merge in progress (`git status`) → stop: finishing or aborting it is the user's call.
 - Uncommitted changes (a run that died) → commit them first: `chore(<slug>): work in progress`.
 - From `red` on, `red:` in the frontmatter is the red commit (missing → stop). The feature's tests are the test files (tests, their support and config) the branch has up to that commit: `git diff --name-only --diff-filter=d origin/<default>...<red>`, without the code. Not just that commit's files: a rework commits only the files it changes. Their command is the project's test command on those files.
 
@@ -106,21 +107,26 @@ Write every status change in the spec as it happens. The spec is never committed
       ### Worth noting
       <the reviewer's "Worth noting", verbatim>
 
-- at the start of each fix round: `## Fix <n> — <its source: review round <k>, the dev's report, the ship failures, the user's decisions>`, with the failures verbatim when no review round holds them;
+- at the start of each fix round: `## Fix <n> — <its source: review round <k>, the dev's report, the ship failures, the rebase, the user's decisions>`, with the failures verbatim when no review round holds them;
 - on a decision of the user (section 7): `## Decision — <YYYY-MM-DD>`, with the decisions verbatim.
 
-**Fix rounds** are the history's `## Fix` sections since its last `## Decision`: the count holds across runs. Every fix round counts, whether the failures come from the dev's own report or from the reviewer, and whether the tester, the dev or both fix them. Cap: 3, unless the project instructions set another. A fix round once the cap is reached → stop instead.
+**Fix rounds** are the history's `## Fix` sections since its last `## Decision`: the count holds across runs. Every fix round counts, whether the failures come from the dev's own report, the rebase or the reviewer, and whether the tester, the dev or both fix them. Cap: 3, unless the project instructions set another. A fix round once the cap is reached → stop instead.
 
-1. Launch a new `rs-reviewer` each round, for fresh eyes:
+1. **Up to date.** The review sees the branch on today's default branch, not the one the build started from.
+   1. `git fetch origin`. The branch was never pushed (`git ls-remote --heads origin <branch>` is empty) → `git rebase origin/<default>`. Already pushed → `git merge --no-edit origin/<default>` instead: never rewrite what was pushed, never force-push.
+   2. A conflict → a fix round: send the conflicting files (`git diff --name-only --diff-filter=U`) to the dev as in 4.4.2, to resolve without committing. Then `git add -A` and `git -c core.editor=true rebase --continue` (`git commit --no-edit` for a merge); another conflict, the same. The dev can't resolve one (a test file, a blocker), or the cap is reached → `git rebase --abort` (`git merge --abort`), stop.
+   3. The rebase rewrote `red:` or the last reviewed commit (`git merge-base --is-ancestor <sha> HEAD` fails) → each is now the newest commit of `origin/<default>..HEAD` with the same subject and author date (`git log -1 --format='%s%n%aI' <old sha>`: the old commit outlives the rebase). Write the new `red:` in the spec. None → stop.
+   4. Run the full suite. Red → a fix round: the failures to the dev as in 4.4.2, read its report as in 3.2, commit `fix(<slug>): pass the suite on <default>`.
+2. Launch a new `rs-reviewer` each round, for fresh eyes:
 
        Spec: .rs/features/<slug>.md
        Red commit: <sha> — tests: <files>
        Round: <n>
 
-   From round 2, add `History: .rs/features/<slug>.review.md — last reviewed: <its last round's commit>`. `<n>`: the history's rounds plus one.
-2. Append the round to the history, with `HEAD` as the commit reviewed.
+   From round 2, add `History: .rs/features/<slug>.review.md — last reviewed: <its last round's commit, after 4.1.3>`. `<n>`: the history's rounds plus one.
+3. Append the round to the history, with `HEAD` as the commit reviewed.
    OK → write `## Review notes` at the end of the spec ("Nothing" if none; an earlier section is replaced): the Worth noting items of every round in the history, verbatim, those flagged `[outside spec]` first. `/rs-ship` puts them in the pull request. Set `status: reviewed`. Go to section 6.
-3. KO:
+4. KO:
    - an `[upstream]` item → stop;
    - the fixes don't converge → stop: an item marked `(back from round <k>)`, or, the round before being KO too (since the last `## Decision`), no fewer blocking items than it had;
    - the cap reached → stop;
@@ -147,7 +153,7 @@ Write every status change in the spec as it happens. The spec is never committed
 
   How to resume, by what gets fixed: criteria, the test strategy, or a test that's wrong, trivial or superfluous → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
 
-A stop at 4.3, on the reviewer's blocking items (an `[upstream]` item, fixes that don't converge, the cap) → section 7 after the report. Any other stop ends here.
+A stop at 4.4, on the reviewer's blocking items (an `[upstream]` item, fixes that don't converge, the cap) → section 7 after the report. Any other stop ends here.
 
 ## 6. Done
 
@@ -162,7 +168,7 @@ Then run `/rs-ship <slug>`, here, without asking: it never merges. From then on 
 
 ## 7. Look first or ship anyway
 
-A stop on the review's blocking items (4.3) is the one the user settles in the chat: the build is over and they may be back. Add to its report, in the user's language:
+A stop on the review's blocking items (4.4) is the one the user settles in the chat: the build is over and they may be back. Add to its report, in the user's language:
 
     On ok    shipped anyway: the blocking items go in the pull request
 
@@ -170,11 +176,11 @@ A stop on the review's blocking items (4.3) is the one the user settles in the c
 
 Then wait for the user's answer. By answer:
 
-- **Ship anyway** → write `## Review notes` as in 4.2, add each blocking item of the last round verbatim, prefixed `Blocking, shipped anyway by <git config user.name>:`, and set `status: reviewed`. Then run `/rs-ship <slug>`, here. From then on its instructions apply, not these. `/rs-ship` still runs its own checks: a red suite or changed tests stop it all the same.
+- **Ship anyway** → write `## Review notes` as in 4.3, add each blocking item of the last round verbatim, prefixed `Blocking, shipped anyway by <git config user.name>:`, and set `status: reviewed`. Then run `/rs-ship <slug>`, here. From then on its instructions apply, not these. `/rs-ship` still runs its own checks: a red suite or changed tests stop it all the same.
 - **Not now** → stop, with the report's Resume as the next step, in one line.
 - **A point to look at first** → work it out with the user, here: what the point means in the code, the options, your recommendation. Don't hand it to an agent yet: the dev may not know either, the decision is the user's. Change nothing until they decide, then by decision:
   - ship as it is → as **Ship anyway**;
-  - a change in the code → add it under `## Decisions`, `<YYYY-MM-DD> — <decision> (validated by <git config user.name>)`: the next reviewer counts it in scope. Append it to the history as a `## Decision`. Set `status: green`, so that a run that dies resumes at the review. Then a fix round as in 4.3, sending the decisions verbatim under `Apply these decisions, made with the user on the review:`;
+  - a change in the code → add it under `## Decisions`, `<YYYY-MM-DD> — <decision> (validated by <git config user.name>)`: the next reviewer counts it in scope. Append it to the history as a `## Decision`. Set `status: green`, so that a run that dies resumes at the review. Then a fix round as in 4.4, sending the decisions verbatim under `Apply these decisions, made with the user on the review:`;
   - a change in behaviour, a criterion, the plan or the tests → update the spec (a change in behaviour is a new criterion: it needs a test first), append it to the history as a `## Decision`, set the status as section 5's "How to resume" says, and start again at section 1.
 
   Never change the code yourself in the chat: it would ship without the dev's checks and the reviewer. Once the user has decided, the build goes on without them, its fix rounds counted again from the `## Decision`, and ends on `/rs-ship` or a stop again.
