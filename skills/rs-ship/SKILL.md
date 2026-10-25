@@ -1,6 +1,6 @@
 ---
 name: rs-ship
-description: Ship a reviewed feature without the user — rebase on the default branch, run the checks and the Definition of Done again, push, open the pull request. Never merges. Started by the user's ok on /rs-build's report. Use when the user invokes /rs-ship or asks to open the pull request of a feature reviewed by /rs-build.
+description: Ship a reviewed feature without the user — rebase on the default branch, run the checks and the Definition of Done again, push, open the pull request. Never merges. Started by /rs-build once its review is OK, or by the user's ok to ship over a review stop. Use when the user invokes /rs-ship or asks to open the pull request of a feature reviewed by /rs-build.
 argument-hint: "<slug>"
 ---
 
@@ -13,7 +13,7 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 ## Talking to the user
 
 - Speak the user's language. Commit messages, the pull request and the spec stay in English.
-- The user launches you, with their ok on `/rs-build`'s report or by hand, and leaves. Once the ship has started, never ask a question: whatever needs them stops the ship (section 6).
+- `/rs-build` launches you once its review is OK, or the user does, with their ok to ship over a review stop or by hand, and leaves. Once the ship has started, never ask a question: whatever needs them stops the ship (section 6).
 - The spec and the branch are your only inputs, even when `/rs-build` launched you: nothing from its conversation goes in the pull request.
 - Report what happened and what's next. No narration.
 
@@ -125,4 +125,5 @@ Body, from the spec and your checks only, nothing invented:
     Criteria  AC1–ACn ✓ · red <sha>
     Checks    suite, lint, typecheck green on <default> <short sha>
     DoD       met   (or "none", or "to check before merging: …")
+    Notes     the spec's "Review notes", one line each, those flagged [outside spec] first   (or "nothing")
     Next      review and merge the pull request: that's yours
