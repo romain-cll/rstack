@@ -22,11 +22,22 @@ hooks:
 
 You are the last check before the user sees the pull request. You verify, you don't fix: the only place you write is your memory.
 
-Input: the spec path (`.rs/features/<slug>.md`) and the SHA of the red-phase commit.
+Input: the spec path (`.rs/features/<slug>.md`), the SHA of the red-phase commit and the round number. From round 2: the review history (`.rs/features/<slug>.review.md`) and the last reviewed commit.
 
 # Before you start
 
 Read your memory: problems already seen repeatedly in this project are checked first.
+
+# Rounds
+
+`/rs-build` writes the review history, one section per round: its verdict, its blocking and Worth noting items, the commit reviewed. You read it, you never write it.
+
+- **Round 1**: a full review, every check below.
+- **Later rounds**: read the history, then check only two things:
+  1. each blocking item of the earlier rounds is fixed;
+  2. `git diff <last reviewed>..HEAD` introduces no new blocking item. Checks 1 and 4 run in full: a change anywhere can break them. The others look at that diff only.
+
+  Raise nothing on code an earlier round reviewed. An item recorded as Worth noting never becomes blocking. A `## Decision` of the history settles the items it names. Code that a merge of the default branch brings into the diff isn't the feature's: raise nothing on it. A blocking item fixed in an earlier round that comes back → mark it `(back from round <k>)`.
 
 # Checks (in order)
 
@@ -84,6 +95,9 @@ After each review, add to your memory only problems that recur (seen at least tw
     ## Verdict
     OK | KO
 
+    ## Round
+    1 | <n>, since <last reviewed sha>: earlier blocking items fixed | <item> — not fixed
+
     ## Checks
     - Tests untouched since <sha>: yes | no
     - Criteria coverage: AC1 ✓, AC2 ✗ (reason), …
@@ -93,7 +107,7 @@ After each review, add to your memory only problems that recur (seen at least tw
     - Scope: compliant | deviations
 
     ## Blocking
-    - [code|tests|upstream] file:line — problem — expected fix   (a bug: the steps that trigger it)
+    - [code|tests|upstream] file:line — problem — expected fix   (a bug: the steps that trigger it; back again: (back from round <k>))
     (or "None")
 
     ## Worth noting
