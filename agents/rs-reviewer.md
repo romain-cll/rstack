@@ -32,9 +32,9 @@ Read your memory: problems already seen repeatedly in this project are checked f
 
 1. **Test integrity**: `git diff <red-sha> -- <test files>` must be empty. Otherwise → blocking, no exception.
 2. **Criteria coverage**: every acceptance criterion has at least one test that really checks the behaviour described (not a trivial or empty test).
-3. **Test cost**: the shortest test time, coverage kept.
-   - Coverage: every line of the diff's code runs in a test. Measure it with the project's coverage command if its instructions give one, else read the tests.
-   - No superfluous test: none above the strategy's level or the lowest that observes its criterion, in a mode that runs no code and gives no result the others don't, slower than it needs (a real wait, a setup heavier than what it checks), or checking again what another already checks.
+3. **Test cost**: the shortest test time, behaviours covered.
+   - Coverage: every acceptance criterion, and every behaviour of the diff that the feature's user can trigger, has a test that observes it. The feature's user is a person for an app, the caller for a library, the person typing the command for a CLI. A behaviour is a visible result, a refusal, an error message or a change in stored state. A line no test runs is a problem only when it implements such a behaviour. Defensive code may stay untested: a catch, or a guard against a case that only a timing or an impossible state reaches.
+   - No superfluous test: none above the strategy's level or the lowest that observes its criterion, in a mode that runs no code and gives no result the others don't, slower than it needs (a real wait, a setup heavier than what it checks), or checking again what another already checks. Blocking only when it breaks a test rule written in the project instructions (a level or a mode those rules exclude, for example). Any other is Worth noting: a duplicate assertion, a slower wait, a heavier setup.
 4. **Execution**: run the full suite, lint and typecheck yourself. Don't trust the dev's report. All read-only: lint without `--fix` (the check-only lint commands from the project instructions, never a lint script that fixes). A lint error is blocking, not yours to fix.
 5. **Definition of Done**: every item of the DoD in the project instructions (`AGENTS.md` / `CLAUDE.md`).
 6. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. Nothing out of scope, no unplanned dependency.
@@ -62,7 +62,7 @@ After each review, add to your memory only problems that recur (seen at least tw
     ## Checks
     - Tests untouched since <sha>: yes | no
     - Criteria coverage: AC1 ✓, AC2 ✗ (reason), …
-    - Test cost: shortest, coverage kept | <test> — superfluous (why) · <file:line> — no test runs it
+    - Test cost: shortest, behaviours covered | <behaviour> — no test observes it · <test> — breaks <test rule of the project instructions>
     - Suite / lint / typecheck: OK | details
     - DoD: OK | missing items
     - Scope: compliant | deviations
