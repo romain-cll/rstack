@@ -49,6 +49,7 @@ Before collecting anything, settle:
 - the kind: problem or area;
 - the subject, in one sentence: for a problem, the symptom as observed (what, where, how often, since when); for an area, what it covers;
 - the scope: what's in, what's out, which environments;
+- what the user wants to see beyond the report's sections, in the form they asked: a table, a list, a timeline, a comparison (e.g. every call of a method, with its file and what it passes);
 - where you may run things, when the project instructions don't say: locally, on CI through a throwaway branch (section 5).
 
 Anything unclear → ask (Talking to the user). Then no more questions until the gate.
@@ -100,6 +101,8 @@ Never stop on the first plausible cause while some fact remains unexplained.
 
 Write `<diagnoses>/<slug>.md` from the template below. Continuing a diagnosis → update it in place and set `updated:`.
 
+The template's sections are the minimum, not a cap. What the user asked to see (section 2, or at the gate) goes in its own section, right after the Summary, in the form they asked. The evidence rules hold there too: every row or item cites its evidence. A list that claims to be complete says how it was searched (the commands) and what that search can't see (dynamic calls, reflection, generated code, other repositories), so its completeness can be checked.
+
 ## 8. Gate
 
 Present, in the user's language:
@@ -119,7 +122,7 @@ Present, in the user's language:
 
 The question in plain text at the end, never through a question tool. Then wait for the user's answer. By answer:
 
-- **Dig further** on a point, or new facts (the output of a run they made) → back to section 3 or 4 on that point, update the report, then the gate again with only what changed.
+- **Dig further** on a point, new facts (the output of a run they made), or a view to add (a table, a list) → back to section 3 or 4 on that point, update the report, then the gate again with only what changed.
 - **Plan it**, an option named or not → run `/rs-plan <diagnoses>/<slug>.md`, with the option the user named, here. From then on its instructions apply, not these.
 - **Nothing to plan, or not now** → stop, with the report's path in one line.
 
@@ -146,6 +149,10 @@ The question in plain text at the end, never through a question tool. Then wait 
 
     ## Summary
     <the causes, or the state, in a few lines>
+
+    ## <what the user asked to see>
+    <in the form they asked, every row or item with its evidence; a complete list says how it was searched and what the search can't see>
+    (nothing asked → drop the section)
 
     ## Findings
 
