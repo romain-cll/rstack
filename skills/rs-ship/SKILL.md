@@ -91,6 +91,7 @@ Body, from the spec and your checks only, nothing invented:
     <the user story>
 
     - <the approach, from the technical plan>
+    - Cause: <each finding of the spec's "Diagnosis", one line, with its confidence>   (no Diagnosis → drop the line)
 
     ## Testing
     - AC1 — <criterion>
