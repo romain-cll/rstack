@@ -1,7 +1,7 @@
 ---
 name: rs-plan
-description: Turn a feature request into a ready-to-build spec — user story, testable acceptance criteria, scope, technical plan — validated by the user in a single gate, whose ok starts /rs-build. Use when the user invokes /rs-plan or asks to spec or plan a feature before building it.
-argument-hint: "<feature description>"
+description: Turn a feature request, or a diagnosis report from /rs-diagnose, into a ready-to-build spec — user story, testable acceptance criteria, scope, technical plan — validated by the user in a single gate, whose ok starts /rs-build. Use when the user invokes /rs-plan or asks to spec or plan a feature before building it.
+argument-hint: "<feature description | diagnosis report>"
 ---
 
 # rs-plan
@@ -21,6 +21,14 @@ Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no
 - Read the project instructions (`AGENTS.md`, `CLAUDE.md`): conventions, test and lint commands, Definition of Done.
 - Explore the code just enough to ask the right questions: where the feature lives, a similar feature already built, the patterns in place.
 - Clarify with the user: who, what, why, edge cases, what's out. Stop asking when every criterion can be written as Given / When / Then.
+
+**From a diagnosis.** The input is a report of `/rs-diagnose`: its path, or a slug of `.rs/diagnoses/` in the clone's main checkout (the first `worktree` of `git worktree list --porcelain`). Read it whole first.
+
+- Don't ask again what it answers: the subject, the scope, the causes.
+- Which of its "Options for /rs-plan", unless the user named one, and which findings this spec addresses → ask, with your recommendation.
+- Criteria target the proven causes: each finding addressed gets a criterion whose context reproduces its order of events, so that its test fails for the reason the report proved.
+- A finding the spec rests on is `likely` or `unknown` → ask: back to `/rs-diagnose` to dig further, or plan on it anyway, written under Risks. Never written as a proven cause.
+- The report cites the code at its `commit:`. The branch has moved since → check that the paths the spec relies on still read as cited.
 
 ## 2. Write the spec
 
@@ -52,6 +60,7 @@ The spec is ready when:
 - out of scope is explicit;
 - every criterion is covered by at least one task and has a test level, the lowest that observes it, in one mode unless another runs code or gives a result the first doesn't;
 - every open decision has options and a recommendation;
+- from a diagnosis: every finding addressed is in "Diagnosis" and has a criterion; one not proven is under Risks;
 - nothing else is left open.
 
 Fix whatever fails before the gate.
@@ -63,6 +72,7 @@ Present the spec in this shape, nothing more:
     <Title> — .rs/features/<slug>.md
 
     Story       As a …, I want …, so that …
+    Causes      F1, F2 from <report path> — one line each   (no diagnosis → drop the line)
     Criteria    AC1 — …
                 AC2 — …
     Out         …
@@ -104,6 +114,11 @@ An ok that holds the build back ("ok, not now") → stop after 2, with `/rs-buil
 
     ## Constraints
     - … (or "None")
+
+    ## Diagnosis
+    From <report path>, <its updated date>, at <its commit>. The findings this spec addresses, copied from the report (the agents only see the spec): cause, code path, order of events, evidence, confidence.
+    - F1 — …
+    (no diagnosis → drop the section)
 
     ## Technical plan
 
