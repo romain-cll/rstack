@@ -96,7 +96,7 @@ The review history, `<slug>.review.md`, is written by `/rs-build` and read by `r
 
 **Where the spec lives.** In the feature's workspace, next to the code, and nowhere else: the skills and agents that run there share it through the file, not through git. So a feature is planned, built and shipped in the same workspace. The team gets what it needs from the pull request: `/rs-ship` writes the user story, the acceptance criteria and the review notes into it. Deleting the workspace, or a `git clean -x`, deletes the spec.
 
-**Where diagnoses live.** In `.rs/diagnoses/` of the clone's main checkout (the first worktree of `git worktree list`), not in the workspace: a diagnosis often outlives the feature that follows it, leads to several, or to none. Every workspace of the clone reads it there, and it stays out of git like the rest of `.rs/`. The team's trace is the pull request: the causes a feature fixes go in it through the spec.
+**Where diagnoses live.** In `.rs/diagnoses/` of the clone's main checkout (the first worktree of `git worktree list`), not in the workspace: a diagnosis often outlives the feature that follows it, leads to several, or to none. Every workspace of the clone reads it there, and it stays out of git like the rest of `.rs/`: it stays on your machine, a teammate doesn't see it, and deleting the clone, or a `git clean -x` in the main checkout, deletes it. The team's trace is the pull request: the causes a feature fixes go in it through the spec.
 
 The reviewer's memory stays out of git too: `rs-reviewer` keeps it in `.claude/agent-memory-local/rs-reviewer/`, which `/rs-build` adds to `.git/info/exclude` (local to the clone, never committed). Like the spec, it lives in the workspace.
 
