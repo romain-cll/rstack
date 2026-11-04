@@ -66,18 +66,17 @@ Write every status change in the spec as it happens. The spec is never committed
 
 ## 2. Red
 
-1. Run the full suite. Apart from tests this branch already added (`git diff --name-only origin/<default>...HEAD`), it must be green: no TDD on a red base. Red → stop: the workspace isn't ready (dependencies, environment: the harness's setup), or the default branch is broken.
-2. Launch `rs-tester`:
+1. Launch `rs-tester`:
 
        Spec: .rs/features/<slug>.md
        Write the failing tests for its acceptance criteria. Don't commit.
 
    Tests of this feature already on the branch (a resumed build): add `Rework the existing tests of this feature: <files>. Code may already exist for some criteria.`
-3. Its report has untestable criteria, or a broken existing suite → stop.
-4. Check, don't trust:
+2. Its report has untestable criteria, or a broken existing suite → stop. The existing suite is the base check: no TDD on a red base. Broken, it means the workspace isn't ready (dependencies, environment: the harness's setup), the default branch is broken, or the tester's support or config files broke it.
+3. Check, don't trust:
    - `git status`: only tests changed (test files, their support and config). Anything else → stop.
    - Run the report's command: the tests written or changed in this phase fail. All green → stop: they test nothing new. On a rework, a changed test the branch's code already satisfies may pass: list it in the final report.
-5. Commit: `test(<slug>): add the failing tests`. Then set `status: red` and `red: <short sha of that commit>` in the spec.
+4. Commit: `test(<slug>): add the failing tests`. Then set `status: red` and `red: <short sha of that commit>` in the spec.
 
 ## 3. Green
 
@@ -137,7 +136,7 @@ Write every status change in the spec as it happens. The spec is never committed
             Rework the tests of this feature after review: <files>. The code is there. Don't commit.
             <the [tests] items, verbatim>
 
-        Check its report and the tree as in 2.3 and 2.4, except that reworked tests may pass. Commit `test(<slug>): rework the tests, review round <n>`, write `red: <its short sha>` in the spec. A reworked test fails → set `status: red`.
+        Check its report and the tree as in 2.2 and 2.3, except that reworked tests may pass. Commit `test(<slug>): rework the tests, review round <n>`, write `red: <its short sha>` in the spec. A reworked test fails → set `status: red`.
      2. `[code]` items, or reworked tests that fail → send them verbatim to the same dev, with the new red commit and tests if they changed (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, commit `fix(<slug>): address review round <n>`, set `status: green`.
      3. Back to 4.1.
 

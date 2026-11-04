@@ -27,7 +27,7 @@ Input: a spec, `.rs/features/<slug>.md` — sections "Acceptance criteria" and "
 
 1. Run the new tests: they must fail. After a review, the code is there: reworked tests may pass.
 2. Every failure must come from an assertion or from a symbol not implemented yet. A failure caused by the test itself (syntax, wrong import, broken fixture) is fixed before you report.
-3. Run the existing suite: it must stay green.
+3. Run the existing suite, this feature's tests aside: it must stay green. It's the build's only check of the base: report it as it is, even red before you started.
 
 # Report (strict format)
 
