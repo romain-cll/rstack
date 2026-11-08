@@ -50,8 +50,8 @@ Two decisions, no more: the spec and its plan (your ok starts the build), and th
 | Role | Runs as | Why |
 |---|---|---|
 | architect | inside `/rs-plan` | single pass, works with you, nothing to isolate |
-| tester | agent `rs-tester` | writes tests from the criteria without seeing an implementation; writes test files only |
-| dev | agent `rs-dev` | a hook blocks any edit to tests |
+| tester | agent `rs-tester` | writes tests from the criteria without seeing an implementation; writes test files only, a hook blocks `.rs/checks` |
+| dev | agent `rs-dev` | a hook blocks any edit to tests and to `.rs/checks` |
 | reviewer | agent `rs-reviewer` | fresh eyes that didn't write the code; read-only by hook, runs only the checks of `.rs/checks` |
 
 ## Language
@@ -95,13 +95,20 @@ The spec also carries what one skill leaves for the next. `## Diagnosis`: the fi
 
 The review history, `<slug>.review.md`, is written by `/rs-build` and read by `rs-reviewer`. Round 1 is a full review; later rounds check only that the earlier blocking items are fixed and that the diff since the last reviewed commit adds none, and a note never turns blocking later. The fix-round count is read from it, so it holds across runs of `/rs-build`.
 
-**The reviewer's checks — `.rs/checks`.** `rs-reviewer` runs the suite, lint and typecheck itself, and its hook knows no package manager or runner: each project declares its check-only commands, one per line. Blank lines and `#` comments are ignored. A line allows the command followed by any arguments, never another script: `npm test` allows `npm test -- auth`, not `npm test:update`. Besides these, the reviewer runs only read-only commands (`cd`, `ls`, `cat`, `grep`, `diff`, `find` without `-exec` or `-delete`, git's read subcommands). Always refused, even on a declared line: `--fix`, the options that write (`-u`, `--update*`, `--output*`, `-o`, `--init`), a redirection to a file, `$(…)`, backticks, `<(…)`. No file → nothing but reading. `/rs-build` writes it when it's missing, from the project instructions, and shows it to you in the chat; edit it if a line is wrong. The reviewer can't write it.
+**The reviewer's checks — `.rs/checks`.** `rs-reviewer` runs the suite, lint and typecheck itself, and its hook knows no package manager or runner: each project declares its check-only commands, one per line. Blank lines and `#` comments are ignored. A line allows the command followed by any arguments, never another script: `npm test` allows `npm test -- auth`, not `npm test:update`. Besides these, the reviewer runs only read-only commands (`cd`, `ls`, `cat`, `grep`, `diff`, `find` without `-exec` or `-delete`, git's read subcommands). Always refused, even on a declared line: `--fix`, the options that write (`-u`, `--update*`, `--output*`, `-o`, `--init`), a redirection to a file, `$(…)`, backticks, `<(…)`. Lines starting with `!` are the project's refusals: a glob on the whole command, refused even when it starts with a declared line (`!*--write*` refuses any command with `--write`, `!bunx prettier --check . -w*` that one). They add to the hook's refusals, never lift one. No file → nothing but reading.
+
+The file concerns the reviewer only: it is the only agent whose Bash is filtered, rs-dev and rs-tester keep theirs open. None of the three can write it (Edit and Write refused by hook). `/rs-build` writes it when it's missing, from the project instructions, with the refusals of the tools it knows (Prettier, Biome, RuboCop, pytest snapshots, Go golden files), shows it to you in the chat at every start, and stops if it changed before a review; edit it if a line is wrong.
 
 ```
 # .rs/checks
 bun run typecheck
 bun run test
 bunx turbo run typecheck test
+bunx prettier --check .
+
+# refusals
+!*--write*
+!*prettier* -w*
 ```
 
 **Where the spec lives.** In the feature's workspace, next to the code, and nowhere else: the skills and agents that run there share it through the file, not through git. So a feature is planned, built and shipped in the same workspace. The team gets what it needs from the pull request: `/rs-ship` writes the user story, the acceptance criteria and the review notes into it. Deleting the workspace, or a `git clean -x`, deletes the spec.
