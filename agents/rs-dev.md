@@ -11,6 +11,8 @@ hooks:
       hooks:
         - type: command
           command: "\"$HOME\"/.claude/hooks/rstack/block-test-edits.sh"
+        - type: command
+          command: "\"$HOME\"/.claude/hooks/rstack/block-checks-edits.sh"
 ---
 
 # Role
