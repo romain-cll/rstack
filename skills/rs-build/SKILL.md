@@ -49,6 +49,18 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 - `git check-ignore -q .rs/features/<slug>.md` succeeds. `.rs/.gitignore` missing → create it containing `*`, check again. Still failing → `.rs/` is tracked → stop: untracking it (`git rm -r --cached .rs`, then a commit) is the user's call.
 - `.claude/agent-memory-local/`, the reviewer's memory, is a line of `$(git rev-parse --git-path info/exclude)`. Missing → append it.
 
+**Every start: the reviewer's checks.** Besides reading, `rs-reviewer` runs only the commands of `.rs/checks`: its hook refuses the rest, and it can't write the file. It exists → leave it, the user may have edited it. Missing → write it:
+
+- the check-only commands of the project instructions (`AGENTS.md`, `CLAUDE.md`, the README, the scripts of `package.json`, a `Makefile`…): the full suite, lint, typecheck. One per line, as the project runs it.
+- None that writes: no `--fix`, no `-u`, `--update*`, `--output*`, `-o` or `--init`, no install. A script runs what its body says, read it: one that fixes or writes (`"lint": "eslint --fix ."`) → the check-only command it wraps instead (`npx eslint .`).
+- No test command found → stop: the reviewer couldn't run the suite.
+
+Then show it to the user in the chat, without asking anything, and go on:
+
+    Checks   .rs/checks written, the only commands rs-reviewer may run besides reading:
+             <each line>
+             A wrong one → edit the file, the next review uses it.
+
 **From `ready`.**
 
 1. Nothing is uncommitted (`git status --porcelain` is empty). Anything → stop: the build needs a workspace of its own.
@@ -150,7 +162,7 @@ Write every status change in the spec as it happens. The spec is never committed
       Items    the blocking items, untestable criteria or failures, verbatim
       Resume   what to fix, then /rs-build <slug> here
 
-  How to resume, by what gets fixed: criteria, the test strategy, or a test that's wrong, trivial or superfluous → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status.
+  How to resume, by what gets fixed: criteria, the test strategy, or a test that's wrong, trivial or superfluous → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else, `.rs/checks` included → leave the status.
 
 A stop at 4.4, on the reviewer's blocking items (an `[upstream]` item, fixes that don't converge, the cap) → section 7 after the report. Any other stop ends here.
 
