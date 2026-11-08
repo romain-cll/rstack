@@ -29,19 +29,43 @@ forbid_writing_flags() {
   done
 }
 
-is_declared_check() {
-  local segment=$1 line
-  [ -f "$CHECKS_PATH" ] || return 1
+# Lines of .rs/checks, words joined by single spaces (spacing and CRLF don't
+# matter): ALLOWED holds the checks, REFUSED the project's refusals ("!" lines).
+ALLOWED=()
+REFUSED=()
+load_checks() {
+  local line
+  [ -f "$CHECKS_PATH" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%%#*}
-    # Words joined by single spaces, like the segment: spacing and CRLF don't matter.
     # shellcheck disable=SC2086
     set -f; set -- ${line//$'\r'/}; set +f
     line=$*
-    [ -z "$line" ] && continue
-    case "$segment " in "$line "*) return 0 ;; esac
+    case "$line" in
+      '') ;;
+      '!'*) line=${line#!}; line=${line# }; [ -n "$line" ] && REFUSED+=("$line") ;;
+      *) ALLOWED+=("$line") ;;
+    esac
   done <"$CHECKS_PATH"
+}
+
+is_declared_check() {
+  local line
+  for line in "${ALLOWED[@]}"; do
+    case "$1 " in "$line "*) return 0 ;; esac
+  done
   return 1
+}
+
+# The project's refusals add to the guard's own, never lift one. A refusal is a
+# glob on the whole segment, declared check or read-only command alike:
+# "!*--write*" refuses any command with --write, "!bunx prettier -w*" that one.
+forbid_project_refusals() {
+  local pattern
+  for pattern in "${REFUSED[@]}"; do
+    # shellcheck disable=SC2254
+    case "$1" in $pattern) refuse "\"$1\" matches the refusal \"!$pattern\" of $CHECKS_FILE." ;; esac
+  done
 }
 
 not_allowed() {
@@ -57,6 +81,7 @@ check_segment() {
   set -- $1
   set +f
   [ $# -eq 0 ] && return 0
+  forbid_project_refusals "$*"
   if is_declared_check "$*"; then
     forbid_writing_flags "$@"
     return 0
@@ -91,6 +116,7 @@ check_segment() {
 
 read_hook_payload
 CHECKS_PATH="${CLAUDE_PROJECT_DIR:-${HOOK_CWD:-.}}/$CHECKS_FILE"
+load_checks
 CMD=$(jq -er '.tool_input.command | select(type == "string" and length > 0)' <<<"$HOOK_INPUT" 2>/dev/null) \
   || deny "hook input without a command."
 
@@ -100,8 +126,14 @@ case "$CMD" in *--fix*) refuse "No --fix. $LINT_HINT" ;; esac
 case "$CMD" in *\"-*|*\'-*) refuse "No quoted options." ;; esac
 
 # Quoted strings are arguments: neutralise them to analyse the structure.
-BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'/ARG/g" -e 's/"[^"]*"/ARG/g')
+Q=$'\001'
+BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'/$Q/g" -e "s/\"[^\"]*\"/$Q/g")
 case "$BARE" in *\'*|*\"*|*\\*) refuse "Quotes or escapes that can't be analysed." ;; esac
+# A quoted string is a whole argument, or the value after "=": glued to a word
+# (-"u", --upd'ate'), it would hide an option from every check below.
+printf '%s' "$BARE" | grep -Eq "[^[:space:]=]$Q|$Q[^[:space:];|&<>]" \
+  && refuse "A quoted string must be a whole argument, or the value after \"=\"."
+BARE=${BARE//$Q/ARG}
 
 # Only redirections to /dev/null and 2>&1 are allowed.
 BARE=$(printf '%s' "$BARE" | sed -E -e 's/[0-9]*>&[0-9]//g' -e 's#(&|[0-9]*)>{1,2} */dev/null##g')
