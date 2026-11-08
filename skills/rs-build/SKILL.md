@@ -49,17 +49,30 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 - `git check-ignore -q .rs/features/<slug>.md` succeeds. `.rs/.gitignore` missing → create it containing `*`, check again. Still failing → `.rs/` is tracked → stop: untracking it (`git rm -r --cached .rs`, then a commit) is the user's call.
 - `.claude/agent-memory-local/`, the reviewer's memory, is a line of `$(git rev-parse --git-path info/exclude)`. Missing → append it.
 
-**Every start: the reviewer's checks.** Besides reading, `rs-reviewer` runs only the commands of `.rs/checks`: its hook refuses the rest, and it can't write the file. It exists → leave it, the user may have edited it. Missing → write it:
+**Every start: the reviewer's checks.** Besides reading, `rs-reviewer` runs only the commands of `.rs/checks`: its hook refuses the rest. No agent of the build can write the file. It exists → leave it, the user may have edited it. Missing → write it:
 
 - the check-only commands of the project instructions (`AGENTS.md`, `CLAUDE.md`, the README, the scripts of `package.json`, a `Makefile`…): the full suite, lint, typecheck. One per line, as the project runs it.
-- None that writes: no `--fix`, no `-u`, `--update*`, `--output*`, `-o` or `--init`, no install. A script runs what its body says, read it: one that fixes or writes (`"lint": "eslint --fix ."`) → the check-only command it wraps instead (`npx eslint .`).
+- None that writes: no `--fix`, no `-u`, `--update*`, `--output*`, `-o` or `--init`, no install. A script runs what its body says, read it: one that fixes or writes (`"lint": "eslint --fix ."`) → the check-only command it wraps instead (`npx eslint .`). A formatter → its check form (`prettier --check .`, `black --check .`, `ruff format --check .`, `cargo fmt -- --check`).
+- Then the refusals, lines starting with `!`: a glob on the whole command, refused even when it starts with a check. The hook already refuses the options above; add those of the tools the checks run, so that an extra argument can't make a check write:
+
+  | tool | refusals |
+  |---|---|
+  | Prettier | `!*--write*`, `!*prettier* -w*` |
+  | Biome | `!*--write*`, `!*--apply*`, `!*--unsafe*` |
+  | RuboCop | `!*--autocorrect*`, `!*rubocop* -a*`, `!*rubocop* -A*` |
+  | pytest snapshots (syrupy, pytest-regressions) | `!*--snapshot-update*`, `!*--force-regen*` |
+  | Go golden files | `!* -update*` |
+
+  Another tool with an option that writes → its refusal too, from its documentation.
 - No test command found → stop: the reviewer couldn't run the suite.
 
-Then show it to the user in the chat, without asking anything, and go on:
+Then, written or found, show it to the user in the chat, without asking anything, and go on:
 
-    Checks   .rs/checks written, the only commands rs-reviewer may run besides reading:
+    Checks   .rs/checks, the only commands rs-reviewer may run besides reading:
              <each line>
              A wrong one → edit the file, the next review uses it.
+
+Before each review (4.2), `.rs/checks` is still what you showed. Changed → stop: only the user edits it.
 
 **From `ready`.**
 

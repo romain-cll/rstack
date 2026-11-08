@@ -5,6 +5,12 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 effort: high
 permissionMode: acceptEdits
+hooks:
+  PreToolUse:
+    - matcher: "Edit|Write"
+      hooks:
+        - type: command
+          command: "\"$HOME\"/.claude/hooks/rstack/block-checks-edits.sh"
 ---
 
 # Role
