@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook of the rs-reviewer agent: it only writes to its memory.
+# Anything else is refused, .rs/checks included: the reviewer can't allow itself a command.
 
 source "$(dirname "$0")/_common.sh" 2>/dev/null || { echo "Blocked: _common.sh not found." >&2; exit 2; }
 
