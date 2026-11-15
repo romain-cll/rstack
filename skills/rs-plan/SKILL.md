@@ -48,7 +48,7 @@ You are now the architect. Read-only: you change nothing but the spec.
 - A new dependency is an open decision, always with the dependency-free alternative.
 - Designing reveals a hole in the spec → back to the user. Never guess.
 - Web lookups only for the official docs of a library or an API.
-- Tests: the shortest test time that keeps every criterion, and every behaviour the feature's user can trigger, observed by a test. A behaviour is a visible result, a refusal, an error message or a change in stored state; defensive code may stay untested. Each criterion at the lowest level that can observe its result: unit before integration, integration before e2e; e2e only for what only the whole path shows.
+- Tests: the shortest test time that keeps every criterion, and every behaviour the feature's user can trigger, observed by a test. A behaviour is the result of a rule or a calculation, a refusal, an error path taken or a change in stored state — never what the UI shows of it; defensive code may stay untested. Each criterion at the lowest level that can observe its result: unit before integration, integration before e2e; e2e only for what only the whole path shows. A test observes logic, not rendering: a business rule, a calculation, a change of state, an interaction that triggers logic (sort, filter, change week, submit a form), a refusal, an error path taken, a call made to an API. Rendering has no test: whether a prop is displayed or not, the composition, the layout, the classes, the tokens, the spacing, the colours — nor the wording of a label or of an error message. A test targets what owns the logic: the function, the store or the hook that holds the rule, or the page end to end when only the whole path shows it. A presentational component gets none — a table, a card, a badge that takes props and displays them is never worth a test of its own. Checking the UI it builds is the dev's job, in the running application: that's no test's role, and no screenshot is ever asked as proof. Never assert on a CSS class.
 - One mode — a way the code is launched: environment, platform, configuration. Another only where it runs code or gives a result the first doesn't, for the criteria concerned.
 - Fill the "Technical plan" section of the spec.
 
@@ -56,7 +56,7 @@ You are now the architect. Read-only: you change nothing but the spec.
 
 The spec is ready when:
 
-- every criterion is testable: Given / When / Then with an observable result, no vague word ("fast", "intuitive", "user-friendly"…);
+- every criterion is testable: Given / When / Then with an observable result, no vague word ("fast", "intuitive", "user-friendly"…). A criterion states logic only, in the sense of the Tests bullet above: rendering goes in the spec's scope, what changes — the user story and the technical plan's "Files" — never in a criterion, not even half of one. A spec with no logic at all, a pure UI ticket, therefore has zero criterion: `/rs-build` then runs it without a red phase, no test to write, with lint, typecheck and the existing suite as its only checks;
 - out of scope is explicit;
 - every criterion is covered by at least one task and has a test level, the lowest that observes it, in one mode unless another runs code or gives a result the first doesn't;
 - every open decision has options and a recommendation;

@@ -91,13 +91,15 @@ Write every status change in the spec as it happens. The spec is never committed
 
 ## 2. Red
 
+**No acceptance criterion** — a pure UI ticket, with no logic to state (`/rs-plan`, Definition of Ready): nothing to make fail, so no red phase. Don't launch `rs-tester`, there's nothing to stop on. In the spec, write `status: red` and `red:` the short sha of `git merge-base origin/<default> HEAD` — the branch point, so the feature has no test file — then go to 3. Green. The dev and the reviewer get `tests: none` (3.1, 4.2).
+
 1. Launch `rs-tester`:
 
        Spec: .rs/features/<slug>.md
        Write the failing tests for its acceptance criteria. Don't commit.
 
    Tests of this feature already on the branch (a resumed build): add `Rework the existing tests of this feature: <files>. Code may already exist for some criteria.`
-2. Its report has untestable criteria, or a broken existing suite → stop. The existing suite is the base check: no TDD on a red base. Broken, it means the workspace isn't ready (dependencies, environment: the harness's setup), the default branch is broken, or the tester's support or config files broke it.
+2. Its report has untestable criteria, or a broken existing suite → stop. A criterion reported as rendering, not logic, stops the build the same way: it's the spec to fix, by moving it to the scope. The existing suite is the base check: no TDD on a red base. Broken, it means the workspace isn't ready (dependencies, environment: the harness's setup), the default branch is broken, or the tester's support or config files broke it.
 3. Check, don't trust:
    - `git status`: only tests changed (test files, their support and config). Anything else → stop.
    - Run the report's command: the tests written or changed in this phase fail. All green → stop: they test nothing new. On a rework, a changed test the branch's code already satisfies may pass: list it in the final report.
@@ -111,6 +113,8 @@ Write every status change in the spec as it happens. The spec is never committed
        Red commit: <sha> — tests: <files>
        Test command: <command>
        Make these tests pass, following the technical plan.
+
+   No criterion (section 2) → `tests: none: the spec has no criterion, don't write any` and, instead of the last line, `Implement the technical plan. Check the UI you build in the running application: nothing else does.`
 
    The spec has a `## Ship failures` section (a resume after `/rs-ship`) → add `Also fix these failures, found by /rs-ship after a rebase: <the section, verbatim>`.
 2. Read its report:
@@ -147,7 +151,7 @@ Write every status change in the spec as it happens. The spec is never committed
        Red commit: <sha> — tests: <files>
        Round: <n>
 
-   From round 2, add `History: .rs/features/<slug>.review.md — last reviewed: <its last round's commit, after 4.1.3>`. `<n>`: the history's rounds plus one.
+   No criterion (section 2) → `tests: none: the spec has no criterion, the branch must change no test file`. From round 2, add `History: .rs/features/<slug>.review.md — last reviewed: <its last round's commit, after 4.1.3>`. `<n>`: the history's rounds plus one.
 3. Append the round to the history, with `HEAD` as the commit reviewed.
    OK → write `## Review notes` at the end of the spec ("Nothing" if none; an earlier section is replaced): the Worth noting items of every round in the history, verbatim, those flagged `[outside spec]` first. `/rs-ship` puts them in the pull request. Set `status: reviewed`. Go to section 6.
 4. KO:
@@ -182,7 +186,7 @@ A stop at 4.4, on the reviewer's blocking items (an `[upstream]` item, fixes tha
 ## 6. Done
 
     <Title> — reviewed, <branch>
-    Tests    <n> tests, AC1–ACn · red <sha>
+    Tests    <n> tests, AC1–ACn · red <sha>   (no criterion → "no test, UI only")
     Review   OK after <n> fix round(s)
     Outside  the notes flagged [outside spec], one line each: behaviour the spec doesn't describe   (none → drop the line)
     Note     the other review notes, one line each   (or "nothing")
