@@ -20,6 +20,7 @@ Output: the red tests and the implementation committed on the feature's branch, 
 - The user launches you, with their ok at `/rs-plan`'s gate or by hand, and leaves. Once the build has started, never ask a question: whatever needs them stops the build (section 5).
 - An OK review asks nothing: `/rs-ship` starts (section 6). A stop on the review's blocking items is the exception: its report ends on one question, in plain text, never with a question tool (section 7).
 - Report what happened and what's next. No narration.
+- A message to the user is standard markdown: a bold title line, `- **Label:** value` bullets, paths and URLs as links. Never a code block or an indented block, which the app shows in monospace without wrapping, except a command to copy or a code excerpt. The templates below are the source to write, shown in a fence: write their content, never the fence. Labels in the user's language.
 
 ## Commits
 
@@ -162,10 +163,12 @@ Write every status change in the spec as it happens. The spec is never committed
 - Commit whatever changed, without touching `status`: `chore(<slug>): work in progress, stopped at <red|green|review>`. A stop before any work has nothing to commit. A stop in 4.2 on a cancelled review or a changed fingerprint: restore as far as possible (4.2.3) and commit nothing: what a cancelled reviewer changed never goes in.
 - Report, then stop:
 
-      <Title> — stopped at <red|green|review>, <branch>
-      Why      one line
-      Items    the blocking items, untestable criteria or failures, verbatim
-      Resume   what to fix, then /rs-build <slug> here
+  ```markdown
+  **<Title>** — stopped at <red|green|review>, <branch>
+  - **Why:** one line
+  - **Items:** the blocking items, untestable criteria or failures, verbatim, one sub-bullet each
+  - **Resume:** what to fix, then `/rs-build <slug>` here
+  ```
 
   How to resume, by what gets fixed: criteria, the test strategy, or a test that's wrong, trivial or superfluous → set `status: ready`, the tests get reworked. Plan or design → set `status: red`, the dev reworks the code. Anything else → leave the status. Files a test run leaves that git doesn't ignore → add them to the project's `.gitignore`, then leave the status.
 
@@ -173,12 +176,14 @@ A stop at 4.4, on the reviewer's blocking items (an `[upstream]` item, fixes tha
 
 ## 6. Done
 
-    <Title> — reviewed, <branch>
-    Tests    <n> tests, AC1–ACn · red <sha>   (no criterion → "no test, UI only")
-    Review   OK after <n> fix round(s)
-    Outside  the notes flagged [outside spec], one line each: behaviour the spec doesn't describe   (none → drop the line)
-    Note     the other review notes, one line each   (or "nothing")
-    Next     /rs-ship, now: it opens the pull request, the merge stays yours
+```markdown
+**<Title>** — reviewed, <branch>
+- **Tests:** <n> tests, AC1–ACn · red <sha>   (no criterion → "no test, UI only")
+- **Review:** OK after <n> fix round(s)
+- **Outside:** the notes flagged [outside spec], one sub-bullet each: behaviour the spec doesn't describe   (none → drop the line)
+- **Note:** the other review notes, one sub-bullet each   (or "nothing")
+- **Next:** `/rs-ship`, now: it opens the pull request, the merge stays yours
+```
 
 Then run `/rs-ship <slug>`, here, without asking: it never merges. From then on its instructions apply, not these.
 
@@ -186,9 +191,11 @@ Then run `/rs-ship <slug>`, here, without asking: it never merges. From then on 
 
 A stop on the review's blocking items (4.4) is the one the user settles in the chat: the build is over and they may be back. Add to its report, in the user's language:
 
-    On ok    shipped anyway: the blocking items go in the pull request
+```markdown
+- **On ok:** shipped anyway: the blocking items go in the pull request
 
-    Look at these with me first, or ship anyway?
+Look at these with me first, or ship anyway?
+```
 
 Then wait for the user's answer. By answer:
 

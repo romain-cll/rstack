@@ -16,6 +16,7 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 - `/rs-build` launches you once its review is OK, or the user does, with their ok to ship over a review stop or by hand, and leaves. Once the ship has started, never ask a question: whatever needs them stops the ship (section 6).
 - The spec and the branch are your only inputs, even when `/rs-build` launched you: nothing from its conversation goes in the pull request.
 - Report what happened and what's next. No narration.
+- A message to the user is standard markdown: a bold title line, `- **Label:** value` bullets, paths and URLs as links. Never a code block or an indented block, which the app shows in monospace without wrapping, except a command to copy or a code excerpt. The templates below are the source to write, shown in a fence: write their content, never the fence. Labels in the user's language.
 
 ## Git
 
@@ -113,20 +114,24 @@ Body, from the spec and your checks only, nothing invented:
 - Stopped on a failing suite, lint, typecheck or DoD item → write the Items verbatim at the end of the spec, under `## Ship failures` (an earlier section is replaced). That is how the dev gets them on resume.
 - Report, then stop:
 
-      <Title> — stopped at <start|rebase|check|dod|push|pr>, <branch>
-      Why      one line
-      Items    conflicting files, failures or unmet DoD items, verbatim
-      State    rebased on <default> <sha> | not rebased · pushed | not pushed
-      Resume   what to fix, then /rs-ship <slug> here
+  ```markdown
+  **<Title>** — stopped at <start|rebase|check|dod|push|pr>, <branch>
+  - **Why:** one line
+  - **Items:** conflicting files, failures or unmet DoD items, verbatim, one sub-bullet each
+  - **State:** rebased on <default> <sha> | not rebased · pushed | not pushed
+  - **Resume:** what to fix, then `/rs-ship <slug>` here
+  ```
 
   How to resume, by what failed: a conflict → rebase on `origin/<default>` and resolve it yourself. The red commit not found after the rebase → write its new sha in `red:` yourself. Tests changed since the red commit → undo that change, or set `status: ready` to rework them. The branch's code (a failing check, a DoD item) → set `status: red`: `/rs-build <slug>` hands the Ship failures to the dev and has a new reviewer check the fix. The default branch itself is broken → wait until it's fixed. Then `/rs-ship <slug>` again.
 
 ## 7. Done
 
-    <Title> — shipped, <branch>
-    PR        <url>
-    Criteria  AC1–ACn ✓ · red <sha>
-    Checks    suite, lint, typecheck green on <default> <short sha>
-    DoD       met   (or "none", or "to check before merging: …")
-    Notes     the spec's "Review notes", one line each, those flagged [outside spec] first   (or "nothing")
-    Next      review and merge the pull request: that's yours
+```markdown
+**<Title>** — shipped, <branch>
+- **PR:** [<url>](<url>)
+- **Criteria:** AC1–ACn ✓ · red <sha>
+- **Checks:** suite, lint, typecheck green on <default> <short sha>
+- **DoD:** met   (or "none", or "to check before merging: …")
+- **Notes:** the spec's "Review notes", one sub-bullet each, those flagged [outside spec] first   (or "nothing")
+- **Next:** review and merge the pull request: that's yours
+```
