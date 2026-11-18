@@ -285,9 +285,16 @@ const ticketWith = (session?: typeof SESSION) => ({
   state: session ? { kind: 'in-dev', status: 'red' } : { kind: 'no-session' },
 })
 
-async function mountPane($: any, on: any, tickets: object[]) {
+async function mountPane(
+  $: any,
+  on: any,
+  tickets: object[],
+  // Hooks to register beneath the plugin, before the first call of `$`.
+  beneath?: (on: any) => void,
+) {
   const w = world(on)
   on('state.get', () => ({ value: { value: tickets, version: 1 } }))
+  beneath?.(on)
   await slash($, 'pilot')
 
   const ui = await $.ui.mount({
@@ -347,6 +354,95 @@ test('AC9 — pressing a ticket with no session calls nothing', async ($, on) =>
   const { ui, seen } = await mountPane($, on, [ticketWith(undefined)])
 
   await pressRow(ui)
+
+  expect(seen.tools.filter(e => e.tool === OPEN_TOOL)).toHaveLength(0)
+  expect(seen.processes.filter(argv => argv[0] === 'open')).toHaveLength(0)
+  await ui.unmount()
+})
+
+// pilot-v3-ui AC4: with no ticket, the refresh Button is the only one drawn.
+test('pilot-v3-ui AC4 — pressing refresh collects at once and stores the time of that collect in pilot.polledAt', async ($, on) => {
+  const stored: { key: string; value: unknown }[] = []
+  const { ui, seen, clock } = await mountPane($, on, [], on => {
+    on('state.set', (_: any, e: any) => {
+      stored.push({ key: e.key, value: e.value })
+
+      return { value: { isSet: true, version: stored.length } }
+    })
+  })
+  await clock.settle()
+
+  // Well before the next 10 s tick.
+  await clock.set(3_000)
+  const before = seen.polls
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+  expect(buttons).toHaveLength(1)
+  await ui.press({ key: buttons[0].key })
+  await clock.settle()
+
+  expect(seen.polls).toBe(before + 1)
+  expect(stored.filter(s => s.key === 'polledAt').pop()?.value).toBe(3_000)
+  await ui.unmount()
+})
+
+// pilot-v3-ui AC5
+const toiRow = (state: object, session?: typeof SESSION) => ({
+  ...ticketWith(session),
+  section: 'toi',
+  step: 1,
+  status: 'draft',
+  state,
+})
+
+const ACTIONS = [
+  { label: 'Répondre', state: { kind: 'awaiting-answer', question: 'Which library?' } },
+  { label: 'Voir le plan', state: { kind: 'awaiting-plan-validation' } },
+] as const
+
+async function actionButton(ui: any, label: string) {
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+
+  return buttons.find(b => JSON.stringify(b).includes(label))
+}
+
+for (const { label, state } of ACTIONS) {
+  test(`pilot-v3-ui AC5 — pressing the toi row's ${label} Button focuses its session in the app`, async ($, on) => {
+    const { ui, seen } = await mountPane($, on, [toiRow(state, SESSION)])
+
+    const button = await actionButton(ui, label)
+    expect(button).toBeDefined()
+    await ui.press({ key: button.key })
+
+    const opens = seen.tools.filter(e => e.tool === OPEN_TOOL)
+    expect(opens).toHaveLength(1)
+    expect(opens[0]).toMatchObject({ session_id: 'local_abc', target: 'focus' })
+    expect(seen.processes.filter(argv => argv[0] === 'open')).toHaveLength(0)
+    await ui.unmount()
+  })
+}
+
+test('pilot-v3-ui AC5 — pressing the toi row\'s action Button runs `open <link>` when the app call is refused', async ($, on) => {
+  const { ui, seen, app } = await mountPane($, on, [toiRow(ACTIONS[0].state, SESSION)])
+  app.openAnswer = () => ({ deny: 'not a session this one started' })
+
+  const button = await actionButton(ui, 'Répondre')
+  expect(button).toBeDefined()
+  await ui.press({ key: button.key })
+
+  expect(seen.processes.filter(argv => argv[0] === 'open')).toEqual([
+    ['open', SESSION.link],
+  ])
+  await ui.unmount()
+})
+
+test('pilot-v3-ui AC5 — a toi row with no session has no action Button: no Button of the pane opens anything', async ($, on) => {
+  const { ui, seen } = await mountPane($, on, [toiRow({ kind: 'no-session' })])
+
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+  // The refresh Button is there; none is an action Button.
+  expect(buttons.length).toBeGreaterThan(0)
+  expect(buttons.some(b => /Répondre|Voir le plan/.test(JSON.stringify(b)))).toBe(false)
+  for (const button of buttons) await ui.press({ key: button.key })
 
   expect(seen.tools.filter(e => e.tool === OPEN_TOOL)).toHaveLength(0)
   expect(seen.processes.filter(argv => argv[0] === 'open')).toHaveLength(0)

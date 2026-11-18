@@ -35,9 +35,17 @@
 //   forgeOf(url | undefined) -> 'gitlab' | 'github'   (the `origin` URL)
 //   parseMr({ exitCode, stdout }) -> { state, url, ci, number, kind: 'mr' } | undefined
 //     (the result of `glab mr view <branch> -F json`)
+//
+// pilot-v3-ui adds:
+//   counters(rows) -> { toi, review, dev, pr }
+//     rows: { section, state: { kind } } (a PilotRow: `section` is sectionOf(kind))
+//   planFacts(text) -> { criteria, files }
+//   segments(step) -> { name: 'plan' | 'red' | 'green' | 'review' | 'ship',
+//                       state: 'done' | 'current' | 'todo' }[]   (5, in that order)
 import { expect, test } from 'claude-code/testing'
 
 import {
+  counters,
   deriveState,
   elapsed,
   forgeOf,
@@ -45,9 +53,12 @@ import {
   parseMr,
   parsePr,
   parseReview,
+  planFacts,
   planSummary,
   reviewLine,
+  sectionOf,
   sections,
+  segments,
   stepOf,
   ticketId,
   waitingSince,
@@ -912,3 +923,80 @@ test('pilot-gitlab AC2 — a non-zero exit, unparsable output or an unknown stat
   expect(parseMr({ exitCode: 0, stdout: 'not json' })).toBeUndefined()
   expect(parseMr(mr({ state: 'draft' }))).toBeUndefined()
 })
+
+// pilot-v3-ui AC1
+const counted = (kind: string) => ({ section: sectionOf(kind), state: { kind } })
+
+test('pilot-v3-ui AC1 — counters: toi, review, dev (the other running rows) and pr', () => {
+  const rows = [
+    'awaiting-answer',
+    'awaiting-answer',
+    'awaiting-plan-validation',
+    'no-session',
+    'planning',
+    'in-dev',
+    'in-dev',
+    'shipping',
+    'no-spec',
+    'review',
+    'review',
+    'shipped',
+  ].map(rowOf)
+
+  expect(counters(rows)).toEqual({ toi: 4, review: 2, dev: 5, pr: 1 })
+  expect(counters([])).toEqual({ toi: 0, review: 0, dev: 0, pr: 0 })
+})
+
+// pilot-v3-ui AC2
+test('pilot-v3-ui AC2 — planFacts counts the AC lines, ticked or not, and the files under ### Files only', () => {
+  const spec = [
+    '---',
+    'status: ready',
+    '---',
+    '',
+    '# Feature',
+    '',
+    '## Out of scope',
+    '- not a file',
+    '',
+    '## Acceptance criteria',
+    '- [ ] AC1 — one',
+    '- [x] AC2 — two',
+    '  - [ ] AC9 — indented, not a criterion line',
+    '- [ ] a checkbox that is no criterion',
+    '- AC3 — no checkbox',
+    '- [ ] AC3 — three',
+    '',
+    '## Technical plan',
+    '',
+    '### Files',
+    '- modified: `a.ts` — one',
+    '- new: `b.ts` — two',
+    '- modified: `c.ts` — three',
+    '  continued on an indented line',
+    '',
+    '### Tasks (ordered)',
+    '- not a file either',
+  ].join('\n')
+
+  expect(planFacts(spec)).toEqual({ criteria: 3, files: 3 })
+})
+
+test('pilot-v3-ui AC2 — planFacts gives 0 for a spec with neither', () => {
+  expect(planFacts('# Feature\n\nJust a title.\n')).toEqual({ criteria: 0, files: 0 })
+})
+
+// pilot-v3-ui AC3
+const NAMES = ['plan', 'red', 'green', 'review', 'ship']
+
+for (const [step, states] of [
+  [1, ['current', 'todo', 'todo', 'todo', 'todo']],
+  [3, ['done', 'done', 'current', 'todo', 'todo']],
+  [5, ['done', 'done', 'done', 'done', 'current']],
+] as const) {
+  test(`pilot-v3-ui AC3 — segments at step ${step}: before done, its own current, after todo`, () => {
+    expect(segments(step)).toEqual(
+      NAMES.map((name, i) => ({ name, state: states[i] })),
+    )
+  })
+}
