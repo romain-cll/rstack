@@ -1,10 +1,14 @@
 // The pure functions of pilot/hooks/tickets.ts. The contract these tests fix:
 //
-//   listTickets({ worktrees, files, sessions }) -> Ticket[]
+//   listTickets({ worktrees, files, sessions, self? }) -> Ticket[]
 //     worktrees: `git worktree list --porcelain` output
 //     files:     worktree path -> { file name -> text } (the files of the
 //                worktree's features folder, `.rstack/features/`)
-//     sessions:  the JSON text `list_sessions` answers
+//     sessions:  the JSON text `list_sessions` answers (an array; it leaves
+//                out the calling session)
+//     self:      the JSON text `get_session` answers for `self` (one session
+//                object, same fields as an entry of `sessions`); missing,
+//                an error text or unparseable -> the list alone
 //     Ticket:    { worktree, slug?, title?, status?, branch?, red?,
 //                  session?: { sessionId, isRunning, link } }
 //   parseReview(text | undefined) -> { rounds, verdict, fixes, cap } | undefined
@@ -178,6 +182,82 @@ test('AC2 — an archived session is ignored, the most recently active one wins'
   expect(tickets.find(t => t.slug === 'a')?.session?.sessionId).toBe('a-new')
   expect(tickets.find(t => t.slug === 'b')?.session).toBeUndefined()
   expect(tickets.find(t => t.slug === 'c')?.session).toBeUndefined()
+})
+
+test('AC2 — the pilot\'s own session, left out of the list, is matched to its worktree', () => {
+  const input = {
+    worktrees: porcelain([WT_A, WT_B]),
+    files: {
+      [WT_A]: { 'a.md': spec({ title: 'A', status: 'ready' }) },
+      [WT_B]: { 'b.md': spec({ title: 'B', status: 'ready' }) },
+    },
+    sessions: JSON.stringify([session({ sessionId: 'sB', cwd: WT_B })]),
+  }
+  const self = JSON.stringify(
+    session({ sessionId: 'pilot', cwd: WT_A, isRunning: true }),
+  )
+
+  const tickets = listTickets({ ...input, self })
+  expect(tickets.find(t => t.slug === 'a')?.session).toMatchObject({
+    sessionId: 'pilot',
+    isRunning: true,
+    link: 'claude://claude.ai/epitaxy/pilot',
+  })
+  expect(tickets.find(t => t.slug === 'b')?.session?.sessionId).toBe('sB')
+})
+
+test('AC2 — among the list and the pilot\'s own session, the most recently active non-archived one wins', () => {
+  const input = {
+    worktrees: porcelain([WT_A, WT_B]),
+    files: {
+      [WT_A]: { 'a.md': spec({ title: 'A', status: 'ready' }) },
+      [WT_B]: { 'b.md': spec({ title: 'B', status: 'ready' }) },
+    },
+    sessions: JSON.stringify([
+      session({
+        sessionId: 'a-listed',
+        cwd: WT_A,
+        lastActivityAt: '2026-11-18T09:00:00.000Z',
+      }),
+      session({
+        sessionId: 'b-listed',
+        cwd: WT_B,
+        lastActivityAt: '2026-11-18T09:00:00.000Z',
+      }),
+    ]),
+  }
+  const selfIn = (cwd: string, extra: { isArchived?: boolean } = {}) =>
+    JSON.stringify(
+      session({
+        sessionId: 'pilot',
+        cwd,
+        lastActivityAt: '2026-11-18T12:00:00.000Z',
+        ...extra,
+      }),
+    )
+
+  const newer = listTickets({ ...input, self: selfIn(WT_A) })
+  expect(newer.find(t => t.slug === 'a')?.session?.sessionId).toBe('pilot')
+
+  const archived = listTickets({
+    ...input,
+    self: selfIn(WT_B, { isArchived: true }),
+  })
+  expect(archived.find(t => t.slug === 'b')?.session?.sessionId).toBe('b-listed')
+})
+
+test('AC2 — a pilot session missing or unreadable leaves the list alone', () => {
+  const input = {
+    worktrees: porcelain([WT_A]),
+    files: { [WT_A]: { 'a.md': spec({ title: 'A', status: 'ready' }) } },
+    sessions: JSON.stringify([session({ sessionId: 'sA', cwd: WT_A })]),
+  }
+
+  for (const self of [undefined, '', 'Error: no such session', '{"oops":']) {
+    const tickets = listTickets({ ...input, self })
+    expect(tickets).toHaveLength(1)
+    expect(tickets[0]?.session?.sessionId).toBe('sA')
+  }
 })
 
 test('AC3 — a review history gives its rounds, last verdict, fixes and the cap', () => {
