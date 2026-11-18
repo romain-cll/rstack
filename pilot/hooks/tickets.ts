@@ -50,6 +50,18 @@ function sessionsOf(json: string): Record<string, unknown>[] {
   }
 }
 
+function selfOf(json: string | undefined): Record<string, unknown>[] {
+  try {
+    const parsed: unknown = JSON.parse(json ?? '')
+
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? [parsed as Record<string, unknown>]
+      : []
+  } catch {
+    return []
+  }
+}
+
 function sessionOf(worktree: string, sessions: Record<string, unknown>[]) {
   const found = sessions
     .filter(s => s.cwd === worktree && s.isArchived !== true)
@@ -72,8 +84,9 @@ export function listTickets(input: {
   worktrees: string
   files: Record<string, Record<string, string>>
   sessions: string
+  self?: string
 }): Ticket[] {
-  const sessions = sessionsOf(input.sessions)
+  const sessions = [...sessionsOf(input.sessions), ...selfOf(input.self)]
 
   return worktreePaths(input.worktrees).flatMap((worktree): Ticket[] => {
     const session = sessionOf(worktree, sessions)

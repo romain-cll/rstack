@@ -5,6 +5,7 @@ import {
   QUESTION_PREFIX,
   readFiles,
   readPr,
+  readSelf,
   readQuestions,
   readSessions,
   readWorktrees,
@@ -49,6 +50,7 @@ async function poll($: Engine) {
     worktrees: porcelain,
     files,
     sessions: await readSessions($),
+    self: await readSelf($),
   })
   const questions = await readQuestions($)
 

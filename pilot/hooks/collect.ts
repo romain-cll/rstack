@@ -7,6 +7,7 @@ import type { Question } from './tickets'
 type Engine = EngineInterface
 
 export const LIST_SESSIONS = 'mcp__ccd_session_mgmt__list_sessions'
+export const GET_SESSION = 'mcp__ccd_session_mgmt__get_session'
 export const QUESTION_PREFIX = 'question:'
 
 export async function readWorktrees($: Engine): Promise<string> {
@@ -49,6 +50,15 @@ export async function readSessions($: Engine): Promise<string> {
   return listed.deny === undefined && listed.isError !== true
     ? (listed.text ?? '[]')
     : '[]'
+}
+
+// `list_sessions` leaves out the calling session: the pilot reads its own.
+export async function readSelf($: Engine): Promise<string | undefined> {
+  const own = await $.tool
+    .call({ tool: GET_SESSION, session_id: 'self' })
+    .catch(() => undefined)
+
+  return own && own.deny === undefined && own.isError !== true ? own.text : undefined
 }
 
 export async function readQuestions($: Engine): Promise<Question[]> {
