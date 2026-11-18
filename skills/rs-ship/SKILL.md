@@ -54,7 +54,7 @@ Check before touching anything. One fails → stop.
 1. `git fetch --prune origin`: a remote branch deleted since the last fetch must not linger as `origin/<branch>`.
 2. Branch already on `origin` → its tip was pushed from here: `git rev-parse origin/<branch>` is in `git reflog --format=%H <branch>`. Not in it → someone else pushed to the branch → stop. Compare with the reflog, not with `HEAD`: once rebased, the branch no longer contains what it pushed before.
 3. `git rebase origin/<default>`. Conflict → list the conflicting files (`git diff --name-only --diff-filter=U`), `git rebase --abort`, stop.
-4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec. None → stop.
+4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec, nothing in the review history. None → stop.
 
 ## 3. Check
 
