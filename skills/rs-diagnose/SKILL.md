@@ -39,7 +39,7 @@ The rules of the whole investigation.
 
 - Read the project instructions (`AGENTS.md`, `CLAUDE.md`…): what can run where, test commands, environments.
 - A ticket id or links (logs, CI runs, issues) → read them, with the host's tools or the forge's CLI (`gh`, `glab`). One can't be read → say so; if it matters, it's an unknown.
-- **`<diagnoses>`** is `.rs/diagnoses/` in the clone's main checkout: the first `worktree` of `git worktree list --porcelain` (a `bare` one → the current workspace's root instead). Shared by every workspace of the clone, a report outlives the workspace it was written in. `.rs/.gitignore` missing there → create it containing `*`: diagnoses stay out of git.
+- **`<diagnoses>`** is `.rstack/diagnoses/` in the clone's main checkout: the first `worktree` of `git worktree list --porcelain` (a `bare` one → the current workspace's root instead). Shared by every workspace of the clone, a report outlives the workspace it was written in. Before reading or writing `.rstack/` there: `.rs/.gitignore` exists and contains `*`, and `.rstack/` doesn't exist → `mv .rs .rstack`, said in one line (the folder was `.rs/` in an earlier version). Both exist → leave `.rs/` alone, said in one line. `.rstack/.gitignore` missing there → create it containing `*`: diagnoses stay out of git.
 - Slug: short, kebab-case, from the subject. `<diagnoses>/<slug>.md` exists → ask: continue that diagnosis, or start a new one under another slug.
 
 ## 2. Pin down the subject

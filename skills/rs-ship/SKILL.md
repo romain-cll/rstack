@@ -20,7 +20,7 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 ## Git
 
 - Commit messages and the pull request: the project's convention if its instructions (or a pull request template) set one, else the ones below.
-- You commit nothing: you change no code, and the spec stays out of git (`.rs/` is ignored).
+- You commit nothing: you change no code, and the spec stays out of git (`.rstack/` is ignored).
 - You push this branch only, to `origin`. Never to `<default>`, never a merge.
 - The project instructions say how to push or open a pull request (push options, labels, pipelines) → follow them.
 
@@ -28,7 +28,9 @@ Output: the branch rebased and pushed, the spec at `status: shipped`, a pull req
 
 ## 1. Start
 
-No slug → the spec whose `branch:` is the current branch, else the only `reviewed` spec in `.rs/features/`; several → ask which one.
+Before reading or writing `.rstack/`: `.rs/.gitignore` exists and contains `*`, and `.rstack/` doesn't exist → `mv .rs .rstack`, said in one line (the folder was `.rs/` in an earlier version). Both exist → leave `.rs/` alone, said in one line.
+
+No slug → the spec whose `branch:` is the current branch, else the only `reviewed` spec in `.rstack/features/`; several → ask which one.
 
 Read the project instructions (test, lint and typecheck commands, Definition of Done, how to push and open a pull request) and the spec. Its `status` says what to do:
 
@@ -44,7 +46,7 @@ Check before touching anything. One fails → stop.
 1. No rebase in progress (`git status`): it's the user's or a dead run's, not yours to finish or abort.
 2. The current branch is the spec's `branch:`, and it isn't `<default>`.
 3. No tracked file changed (`git status --porcelain --untracked-files=no` is empty): a change made after the review was never reviewed. Untracked files are left alone, never committed.
-4. `red:` is set. The feature's tests are the test files (tests, their support and config) the branch has up to that commit: `git diff --name-only --diff-filter=d origin/<default>...<red>`, without the code.
+4. `red:` is set. The feature's tests are its red files: the files of the red commits, never found by their subject: the commit in `red:` plus every `red: <sha>` line of the review history `.rstack/features/<slug>.review.md`. Per commit: `git diff --name-only <sha>^ <sha>`; a commit rewritten by a rebase outlives it, its file list still holds. Not just the last commit's files: a rework commits only the files it changes. Keep those that still exist at `red:`. No criterion → no red file. Each is *test-only*, or *shared with code* when it holds production code beside its tests (a Rust `#[cfg(test)] mod tests`, doctests…): read it at `red:` to tell.
 5. The pull request tool, from the host of `git remote get-url origin`: `github.com` → `gh`, `gitlab.com` → `glab`, another host → the one of the two logged in to it. Either way it is installed and logged in (`gh auth status --hostname <host>`, `glab auth status --hostname <host>`).
 
 ## 2. Rebase
@@ -52,13 +54,13 @@ Check before touching anything. One fails → stop.
 1. `git fetch --prune origin`: a remote branch deleted since the last fetch must not linger as `origin/<branch>`.
 2. Branch already on `origin` → its tip was pushed from here: `git rev-parse origin/<branch>` is in `git reflog --format=%H <branch>`. Not in it → someone else pushed to the branch → stop. Compare with the reflog, not with `HEAD`: once rebased, the branch no longer contains what it pushed before.
 3. `git rebase origin/<default>`. Conflict → list the conflicting files (`git diff --name-only --diff-filter=U`), `git rebase --abort`, stop.
-4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec. None → stop.
+4. Update `red:`. A rebase rewrites the SHAs, this one or one done by hand before this run: `git merge-base --is-ancestor <red> HEAD` fails → the red commit is now the newest commit of `origin/<default>..HEAD` with the same subject and author date as the old one (`git log -1 --format='%s%n%aI' <red>`: the old commit outlives the rebase). Newest, because a rework of the tests leaves several commits with that subject, and the last one is the red commit. Write `red: <its short sha>` in the spec, nothing in the review history. None → stop.
 
 ## 3. Check
 
 Yourself, after the rebase: the review was done before it.
 
-1. Tests untouched since the red phase: `git diff --quiet <red> HEAD -- <test files>`. Otherwise → stop.
+1. Tests untouched since the red phase: `git diff --quiet <red> HEAD -- <test-only red files>`. A shared red file: `git diff <red> HEAD -- <file>` must leave its test part unchanged, its code may change. Otherwise → stop.
 2. Run the full suite, lint and typecheck: the project instructions' commands, check-only (no `--fix`). A project without lint or typecheck → "none" in the reports. Anything red → stop.
 
 ## 4. Definition of Done
@@ -96,7 +98,7 @@ Body, from the spec and your checks only, nothing invented:
     ## Testing
     - AC1 — <criterion>
     - …
-    - Red tests: <files>, unchanged since <red sha>
+    - Red tests: <red files>, unchanged since <red sha>   (a shared file: its test part)
     - Rebased on <default> (<short sha of origin/<default>>): suite, lint, typecheck green
     - Definition of Done: met   (or "none", or "met, except what's under Notes")
 
