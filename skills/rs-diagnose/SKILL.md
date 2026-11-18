@@ -20,6 +20,7 @@ Output: the report, `<diagnoses>/<slug>.md` (section 1), and the instrumentation
 - Speak the user's language. The report is written in English.
 - Questions only at the start, to pin down the subject and its scope (section 2): grouped, 3 at most per round, with options and your recommendation. Use the host's question tool if it has one. Never ask to choose a solution: that's `/rs-plan`.
 - Once the subject is pinned down, you work alone until the report. Report findings, no narration.
+- A message to the user is standard markdown: a bold title line, `- **Label:** value` bullets, paths and URLs as links. Never a code block or an indented block, which the app shows in monospace without wrapping, except a command to copy or a code excerpt. The templates below are the source to write, shown in a fence: write their content, never the fence. Labels in the user's language.
 
 ## Evidence
 
@@ -107,18 +108,20 @@ The template's sections are the minimum, not a cap. What the user asked to see (
 
 Present, in the user's language:
 
-    <Subject> — <diagnoses>/<slug>.md
+```markdown
+**<Subject>** · [<diagnoses>/<slug>.md](<diagnoses>/<slug>.md)
+- **Kind:** problem | area
+- **Summary:** the causes, or the state, 3 lines max
+- **Findings:**
+  - F1 — one line — proven | likely | unknown
+  - F2 — …
+- **Ruled out:** H1, H3 — one line each   (or "none")
+- **Unknowns:** … — to resolve: …   (or "none")
+- **Options:** A — one line · B — one line   (for /rs-plan, not chosen)
+- **On plan:** `/rs-plan` starts here, from this report
 
-    Kind       problem | area
-    Summary    the causes, or the state, 3 lines max
-    Findings   F1 — one line — proven | likely | unknown
-               F2 — …
-    Ruled out  H1, H3 — one line each   (or "none")
-    Unknowns   … — to resolve: …   (or "none")
-    Options    A — one line · B — one line   (for /rs-plan, not chosen)
-    On plan    /rs-plan starts here, from this report
-
-    Dig further, or plan it?
+Dig further, or plan it?
+```
 
 The question in plain text at the end, never through a question tool. Then wait for the user's answer. By answer:
 

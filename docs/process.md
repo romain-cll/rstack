@@ -56,7 +56,7 @@ Two decisions, no more: the spec and its plan (your ok starts the build), and th
 
 ## Language
 
-Skills talk to you in your language. Specs, agents and reports are written in English.
+Skills talk to you in your language, in plain markdown (bold title, bulleted fields, links), never an aligned block. Specs, agents and reports are written in English.
 
 ## Feature state — `.rstack/`
 

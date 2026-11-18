@@ -55,3 +55,5 @@ Text wasn't enough. You produce a visual that makes the point obvious at a glanc
 ## 6. Reply
 
 One or two lines at most: only what the visual doesn't say (a caveat, the obvious next question). Never describe or repeat it.
+
+Standard markdown, never a code block or an indented block, except a command to copy or a code excerpt. The one fenced block allowed is the Mermaid fallback of 5.3.

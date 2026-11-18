@@ -15,6 +15,7 @@ Output: `.rstack/features/<slug>.md` with `status: ready`. Nothing else: no code
 - Speak the user's language. No intro, no restating the request, no pleasantries.
 - Questions come grouped, 3 at most per round, with options and your recommendation when there are options. Use the host's question tool if it has one.
 - Closed question → one line. Open question → 5 bullets at most.
+- A message to the user is standard markdown: a bold title line, `- **Label:** value` bullets, paths and URLs as links. Never a code block or an indented block, which the app shows in monospace without wrapping, except a command to copy or a code excerpt. The templates below are the source to write, shown in a fence: write their content, never the fence. Labels in the user's language.
 
 ## 1. Understand
 
@@ -70,19 +71,21 @@ Fix whatever fails before the gate.
 
 Present the spec in this shape, nothing more:
 
-    <Title> — .rstack/features/<slug>.md
-
-    Story       As a …, I want …, so that …
-    Causes      F1, F2 from <report path> — one line each   (no diagnosis → drop the line)
-    Criteria    AC1 — …
-                AC2 — …
-    Out         …
-    Approach    3 lines max
-    Size        n tasks, n files
-    Tests       n unit · n integration · n e2e, one mode   (or the modes, and the criteria that need them)
-    Decide      <question> — recommended: <option>, because …   (or "nothing")
-    Risks       …   (or "none")
-    On ok       the spec goes ready and /rs-build starts here, without you
+```markdown
+**<Title>** · [.rstack/features/<slug>.md](.rstack/features/<slug>.md)
+- **Story:** As a …, I want …, so that …
+- **Causes:** F1, F2 from [<report path>](<report path>) — one line each   (no diagnosis → drop the line)
+- **Criteria:**
+  - AC1 — …
+  - AC2 — …
+- **Out:** …
+- **Approach:** 3 lines max
+- **Size:** n tasks, n files
+- **Tests:** n unit · n integration · n e2e, one mode   (or the modes, and the criteria that need them)
+- **Decide:** <question> — recommended: <option>, because …   (or "nothing")
+- **Risks:** …   (or "none")
+- **On ok:** the spec goes ready and /rs-build starts here, without you
+```
 
 Wait for an explicit ok. Changes requested → update the spec, check the DoR again, present only what changed.
 
