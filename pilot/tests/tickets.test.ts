@@ -55,6 +55,7 @@ const spec = (o: {
   title: string
   status: string
   branch?: string
+  noBranch?: boolean
   red?: string
 }) =>
   [
@@ -62,7 +63,7 @@ const spec = (o: {
     `status: ${o.status}`,
     ...(o.red ? [`red: ${o.red}`] : []),
     'owner: Someone',
-    `branch: ${o.branch ?? 'feat/x'}`,
+    ...(o.noBranch ? [] : [`branch: ${o.branch ?? 'feat/x'}`]),
     'created: 2026-11-18',
     '---',
     '',
@@ -301,7 +302,7 @@ test('open-session AC1 — with self missing or unreadable, no session is marked
   }
 })
 
-test('hide-done AC1 — a detached worktree with no session yields no ticket, whatever specs it holds', () => {
+test('hide-done AC1 — a detached worktree with no session yields no ticket, except its shipped specs with a branch', () => {
   const tickets = listTickets({
     worktrees: detachedPorcelain([
       { path: WT_A, detached: true },
@@ -309,14 +310,32 @@ test('hide-done AC1 — a detached worktree with no session yields no ticket, wh
       { path: WT_C, detached: true },
     ]),
     files: {
-      [WT_A]: { 'a.md': spec({ title: 'A', status: 'shipped' }) },
+      [WT_A]: {
+        'a-draft.md': spec({ title: 'A draft', status: 'draft' }),
+        'a-shipped.md': spec({
+          title: 'A shipped',
+          status: 'shipped',
+          branch: 'feat/a',
+        }),
+        'a-shipped-no-branch.md': spec({
+          title: 'A shipped no branch',
+          status: 'shipped',
+          noBranch: true,
+        }),
+        'a-reviewed.md': spec({ title: 'A reviewed', status: 'reviewed' }),
+      },
       [WT_B]: { 'b.md': spec({ title: 'B', status: 'ready' }) },
       [WT_C]: { 'c.md': spec({ title: 'C', status: 'draft' }) },
     },
     sessions: '[]',
   })
 
-  expect(tickets.map(t => t.slug)).toEqual(['b'])
+  expect(tickets.map(t => t.slug).sort()).toEqual(['a-shipped', 'b'])
+  expect(tickets.find(t => t.slug === 'a-shipped')).toMatchObject({
+    worktree: WT_A,
+    status: 'shipped',
+    branch: 'feat/a',
+  })
 })
 
 test('hide-done AC1 — a detached worktree with a matched session keeps its tickets', () => {
