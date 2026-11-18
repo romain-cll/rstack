@@ -193,6 +193,23 @@ test('AC7 — in a session no one marked, no pane opens and no polling runs', as
   expect(seen.polls).toBe(0)
 })
 
+test('AC7 — a session whose mark moved to another session stops polling', async ($, on) => {
+  const { clock, seen, store } = world(on)
+
+  await slash($, 'pilot')
+  await clock.advance(10_000)
+  expect(seen.polls).toBeGreaterThan(0)
+
+  // What `/pilot` in session B does through the shared store.
+  store.set('pilot', 'B')
+  await clock.advance(10_000)
+  const before = seen.polls
+
+  await clock.advance(60_000)
+
+  expect(seen.polls).toBe(before)
+})
+
 const SESSION = {
   sessionId: 'local_abc',
   isRunning: true,
