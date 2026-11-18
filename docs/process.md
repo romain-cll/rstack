@@ -37,7 +37,7 @@ Then, or straight away:
 |---|---|---|
 | `/rs-diagnose` | at the start and the gate | investigates one subject before planning: a problem whose cause must be found, or an area whose state, risks and open questions must be laid out. Facts kept apart from hypotheses, every claim with its evidence and a confidence (proven, likely, unknown); temporary instrumentation on a throwaway branch, dropped after. Never fixes. Ends on a gate, in the chat: dig further, or plan it, which starts `/rs-plan` from the report. |
 | `/rs-plan` | yes | clarifies the need, or starts from a diagnosis, writes the spec (story, acceptance criteria, out of scope), designs the technical plan, checks the Definition of Ready. Ends on the first gate: your ok starts `/rs-build`. |
-| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → rebase on the default branch → reviewer. KO on the code goes back to the same dev, KO on the tests to the tester, 3 fix rounds max, counted across runs (the project instructions may set another cap); fixes that don't converge, or KO upstream (a wrong or ambiguous criterion, a plan to rework), stop and come back to you. Review OK → `/rs-ship` starts, without asking. A stop on the review ends on a question, in the chat: look at it first, or ship anyway? You settle it with the agent, in the chat, and the build applies your decision. |
+| `/rs-build` | no | started by your ok at the end of `/rs-plan`, or by hand to resume a stopped build. Builds in the current workspace: tester (red) → dev (green, refactor) → rebase on the default branch → reviewer. KO on the code goes back to the same dev, KO on the tests to the tester, and so does a red test the dev reports it can't make pass; 3 fix rounds max, counted across runs (the project instructions may set another cap); fixes that don't converge, or KO upstream (a wrong or ambiguous criterion, a plan to rework), stop and come back to you. Review OK → `/rs-ship` starts, without asking. A stop on the review ends on a question, in the chat: look at it first, or ship anyway? You settle it with the agent, in the chat, and the build applies your decision. |
 | `/rs-ship` | no | started by `/rs-build` once its review is OK, by your ok to ship over a review stop, or by hand. Rebases on the default branch, runs the checks again, checks the Definition of Done, opens the pull request. The merge is yours. |
 | `/rs-explain` | anytime | turns an explanation into a visual: vertical, airy, only what's needed. |
 
@@ -66,7 +66,7 @@ Skills talk to you in your language, in plain markdown (bold title, bulleted fie
 .rstack/
 ├── .gitignore                   *
 ├── features/<slug>.md           spec + state, one file per feature
-├── features/<slug>.review.md    review history: one section per review round, fix round and decision
+├── features/<slug>.review.md    review history: one section per review round, fix round, decision and stop
 ├── diagnoses/<slug>.md          diagnosis report, in the main checkout only (below)
 ├── diagnoses/<slug>.patch       the instrumentation a diagnosis ran, to apply again
 └── explain/                     rendered visuals
