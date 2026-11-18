@@ -9,7 +9,7 @@ claude plugin marketplace add <this repository>
 claude plugin install pilot@rstack
 ```
 
-Then run `/pilot` in the session you want as the pilot. The pane opens, and opens again each time that session starts. Closing the pane stops it; `/pilot` in another session moves it there. Sessions that did not run `/pilot` open no pane and poll nothing.
+Then run `/pilot` in the session you want as the pilot. The pane opens, and opens again each time that session starts. Closing the pane stops it. Running `/pilot` again in another session moves the pane there. Sessions that did not run `/pilot` open no pane and poll nothing.
 
 ## What it reads
 
