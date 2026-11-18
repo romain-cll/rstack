@@ -184,10 +184,10 @@ export const register: Register = on => {
     const now = await $.clock.now()
     const grouped = sections(rows)
     const count = counters(rows)
-    const toi = rows.filter(row => row.section === 'toi')
 
     if (e.props.placement === 'widget') {
-      const first = toi[0]
+      // The first of À toi is the row that has waited longest.
+      const first = grouped.find(g => g.id === 'toi')?.rows[0]
 
       return (
         <Box flexDirection="column" gap={1}>
