@@ -67,7 +67,7 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 
 **Red files.** From `red:` on, the feature's tests are its red files: the files of the red commits, never found by their subject: the commit in the spec's `red:` plus every `red: <sha>` line of the review history (a rework that replaces `red:` appends one, below). Per commit: `git diff --name-only <sha>^ <sha>`; a commit rewritten by a rebase outlives it, its file list still holds. Not just the last commit's files: a rework commits only the files it changes, and the earlier ones stay frozen. Keep those that still exist at `red:`. No criterion → no red file. Each is *test-only*, or *shared with code* when it holds production code beside its tests (a Rust `#[cfg(test)] mod tests`, doctests…): read it at `red:` to tell. The test command is the project's, on those files.
 
-**Bookkeeping of `red:`.** A rework of the tests (2.4 on a resumed build, 4.4.1) replaces `red:` and records the replaced sha: a line `red: <the replaced sha>` at the end of the review history, created if missing (4.4.1: under the round's `## Fix <n>`). A line, never a heading. Never record the branch point of a spec with no criterion: a sha that `git merge-base --is-ancestor <sha> origin/<default>` accepts is the default branch's, its files aren't tests. A first run (no `red:` yet) records nothing. A rebase rewrite (4.1.3, `/rs-ship`) replaces a sha by its rewritten twin and records nothing.
+**Bookkeeping of `red:`.** A rework of the tests (2.4 on a resumed build, 3.2, 4.4.1) replaces `red:` and records the replaced sha: a line `red: <the replaced sha>` at the end of the review history, created if missing (3.2 and 4.4.1: under the round's `## Fix <n>`). A line, never a heading. Never record the branch point of a spec with no criterion: a sha that `git merge-base --is-ancestor <sha> origin/<default>` accepts is the default branch's, its files aren't tests. A first run (no `red:` yet) records nothing. A rebase rewrite (4.1.3, `/rs-ship`) replaces a sha by its rewritten twin and records nothing.
 
 Write every status change in the spec as it happens. The spec is never committed.
 
@@ -81,6 +81,8 @@ Write every status change in the spec as it happens. The spec is never committed
        Write the failing tests for its acceptance criteria. Don't commit.
 
    Tests of this feature already on the branch (a resumed build): add `Rework the existing tests of this feature: <files>. Code may already exist for some criteria.`
+
+   The review history's last section is a `## Stop` (section 5) → add `The last build stopped on these items: <its items, verbatim>`, so that the rework knows what to fix.
 2. Its report has untestable criteria, or a broken existing suite → stop. A criterion reported as rendering, not logic, stops the build the same way: it's the spec to fix, by moving it to the scope. The existing suite is the base check: no TDD on a red base. Broken, it means the workspace isn't ready (dependencies, environment: the harness's setup), the default branch is broken, or the tester's support or config files broke it.
 3. Check, don't trust:
    - `git status` and the diff: read what changed, not the paths. Only tests changed (test files, their support and config, and the test part of a file shared with code). Any production code → stop.
@@ -99,8 +101,15 @@ Write every status change in the spec as it happens. The spec is never committed
    No criterion (section 2) → `tests: none: the spec has no criterion, don't write any` and, instead of the last line, `Implement the technical plan. Check the UI you build in the running application: nothing else does.`
 
    The spec has a `## Ship failures` section (a resume after `/rs-ship`) → add `Also fix these failures, found by /rs-ship after a rebase: <the section, verbatim>`.
+
+   A build started at `red` whose review history's last section is a `## Stop` (section 5) → add `The last build stopped on these items: <its items, verbatim>`.
 2. Read its report:
-   - Blockers → stop.
+   - A Blocker, or failures it can't fix (lint, typecheck or tests), caused by a test-only red file or the test part of a shared one (the failures it names point into it) → a fix round through the tester, counted in the cap (section 4: the cap reached → stop):
+     1. Append `## Fix <n> — the dev's report` to the history, with the failures verbatim.
+     2. Launch `rs-tester` with the 4.4.1 prompt, `after review` replaced by `the dev can't make them pass: <the failures, verbatim>`.
+     3. Check its report and the tree as in 2.2 and 2.3, except that reworked tests may pass. Commit `test(<slug>): rework the tests, <short reason>`, write `red: <its short sha>` in the spec, and record the replaced sha under that `## Fix <n>`, as in section 1. A reworked test fails → set `status: red`.
+     4. Send the new red commit and its tests back to the same dev, as in 4.4.2. Read its report here again, check the red files as in 3.3, then go on where this report was read.
+   - Any other Blocker → stop.
    - Targeted tests, full suite, lint or typecheck not green → send the failures back to the same dev. That's a fix round (section 4).
    - Ship failures: run their commands yourself (an unmet DoD item: check it). Still failing → back to the same dev, a fix round.
 3. **After every run of `rs-dev`** (here, 4.1.2, 4.1.4, 4.4.2, section 7), compare the red files with git, before any commit: `git diff --name-only <red>` and the untracked files (`git ls-files --others --exclude-standard`), ∩ the red files.
@@ -121,7 +130,8 @@ Write every status change in the spec as it happens. The spec is never committed
       <the reviewer's "Worth noting", verbatim>
 
 - at the start of each fix round: `## Fix <n> — <its source: review round <k>, the dev's report, the red files, the ship failures, the rebase, the user's decisions>`, with the failures verbatim when no review round holds them;
-- when a rework of the tests replaces `red:` (2.4, 4.4.1): a line `red: <the replaced sha>` (section 1), so that the frozen tests of every red commit stay known;
+- when a rework of the tests replaces `red:` (2.4, 3.2, 4.4.1): a line `red: <the replaced sha>` (section 1), so that the frozen tests of every red commit stay known;
+- on a stop (section 5): `## Stop — <YYYY-MM-DD> — <red|green|review>`, with the report's Items verbatim;
 - on a decision of the user (section 7): `## Decision — <YYYY-MM-DD>`, with the decisions verbatim.
 
 **Fix rounds** are the history's `## Fix` sections since its last `## Decision`: the count holds across runs. Every fix round counts, whether the failures come from the dev's own report, the rebase or the reviewer, and whether the tester, the dev or both fix them. Cap: 3, unless the project instructions set another. A fix round once the cap is reached → stop instead.
@@ -161,6 +171,7 @@ Write every status change in the spec as it happens. The spec is never committed
 ## 5. Stop
 
 - Commit whatever changed, without touching `status`: `chore(<slug>): work in progress, stopped at <red|green|review>`. A stop before any work has nothing to commit. A stop in 4.2 on a cancelled review or a changed fingerprint: restore as far as possible (4.2.3) and commit nothing: what a cancelled reviewer changed never goes in.
+- Append `## Stop — <YYYY-MM-DD> — <red|green|review>` to the review history (created if missing), with the report's Items verbatim: a resume hands them to the tester (2.1) or the dev (3.1). Not for a stop in section 1: the build hasn't started.
 - Report, then stop:
 
   ```markdown
