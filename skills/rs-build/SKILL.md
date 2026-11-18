@@ -64,7 +64,7 @@ Read the project instructions (test, lint and typecheck commands, Definition of 
 - Uncommitted changes (a run that died) → commit them first: `chore(<slug>): work in progress`.
 - From `red` on, `red:` in the frontmatter is the red commit (missing → stop).
 
-**Red files.** From `red:` on, the feature's tests are its red files: the files of every red-phase commit of `origin/<default>..<red>` (`git log --no-merges --format='%H %s'`, then `git diff-tree --no-commit-id --name-only -r --diff-filter=d <commit>`), found by their subject: `test(<slug>): add the failing tests` (2.4) and `test(<slug>): rework the tests, review round <n>` (4.4.1). Not just the last one's files: a rework commits only the files it changes, and the earlier ones stay frozen. Keep those that still exist at `red:`. No criterion → no red file. Each is *test-only*, or *shared with code* when it holds production code beside its tests (a Rust `#[cfg(test)] mod tests`, doctests…): read it at `red:` to tell. The test command is the project's, on those files.
+**Red files.** From `red:` on, the feature's tests are its red files: the files of the red commits, never found by their subject: the commit in the spec's `red:` plus every `red: <sha>` line of the review history (4.4.1 appends one when a rework replaces `red:`). Per commit: `git diff --name-only <sha>^ <sha>`; a commit rewritten by a rebase outlives it, its file list still holds. Not just the last commit's files: a rework commits only the files it changes, and the earlier ones stay frozen. Keep those that still exist at `red:`. No criterion → no red file. Each is *test-only*, or *shared with code* when it holds production code beside its tests (a Rust `#[cfg(test)] mod tests`, doctests…): read it at `red:` to tell. The test command is the project's, on those files.
 
 Write every status change in the spec as it happens. The spec is never committed.
 
@@ -118,13 +118,14 @@ Write every status change in the spec as it happens. The spec is never committed
       <the reviewer's "Worth noting", verbatim>
 
 - at the start of each fix round: `## Fix <n> — <its source: review round <k>, the dev's report, the red files, the ship failures, the rebase, the user's decisions>`, with the failures verbatim when no review round holds them;
+- when a rework of the tests replaces `red:` (4.4.1): a line `red: <the replaced sha>` under that round's `## Fix <n>`, so that the frozen tests of every red commit stay known;
 - on a decision of the user (section 7): `## Decision — <YYYY-MM-DD>`, with the decisions verbatim.
 
 **Fix rounds** are the history's `## Fix` sections since its last `## Decision`: the count holds across runs. Every fix round counts, whether the failures come from the dev's own report, the rebase or the reviewer, and whether the tester, the dev or both fix them. Cap: 3, unless the project instructions set another. A fix round once the cap is reached → stop instead.
 
 1. **Up to date.** The review sees the branch on today's default branch, not the one the build started from.
    1. `git fetch origin`. The branch was never pushed (`git ls-remote --heads origin <branch>` is empty) → `git rebase origin/<default>`. Already pushed → `git merge --no-edit origin/<default>` instead: never rewrite what was pushed, never force-push.
-   2. A conflict → a fix round: send the conflicting files (`git diff --name-only --diff-filter=U`) to the dev as in 4.4.2, to resolve without committing. Then `git add -A` and `git -c core.editor=true rebase --continue` (`git commit --no-edit` for a merge); another conflict, the same. The dev can't resolve one (a red file, a blocker), or the cap is reached → `git rebase --abort` (`git merge --abort`), stop. Once 4.1.3 is done, check the red files as in 3.3.
+   2. A conflict → a fix round: send the conflicting files (`git diff --name-only --diff-filter=U`) to the dev as in 4.4.2, to resolve without committing. Then check the red files as in 3.3, before going on, so that a restore is part of the resolution and never left uncommitted (`red:` isn't updated yet: compare with `HEAD` instead of `<red>`). Then `git add -A` and `git -c core.editor=true rebase --continue` (`git commit --no-edit` for a merge); another conflict, the same. The dev can't resolve one (a red file, a blocker), or the cap is reached → `git rebase --abort` (`git merge --abort`), stop.
    3. The rebase rewrote `red:` or the last reviewed commit (`git merge-base --is-ancestor <sha> HEAD` fails) → each is now the newest commit of `origin/<default>..HEAD` with the same subject and author date (`git log -1 --format='%s%n%aI' <old sha>`: the old commit outlives the rebase). Write the new `red:` in the spec. None → stop.
    4. Run the full suite. Red → a fix round: the failures to the dev as in 4.4.2, read its report as in 3.2, check the red files as in 3.3, commit `fix(<slug>): pass the suite on <default>`.
 2. Review, guarded: the reviewer's Bash is open, git says whether it changed anything.
@@ -136,7 +137,7 @@ Write every status change in the spec as it happens. The spec is never committed
           Round: <n>
 
       No criterion (section 2) → `tests: none: the spec has no criterion, the branch must change no test file`. From round 2, add `History: .rstack/features/<slug>.review.md — last reviewed: <its last round's commit, after 4.1.3>`. `<n>`: the history's rounds plus one.
-   3. After: spec or history fingerprint changed → stop: they are out of git, nothing restores them. Tree still clean, same `HEAD`, same branch → the round counts, go on. Otherwise the round is cancelled: not written to the history, not counted. Restore the workspace: `git switch <branch>`, `git reset --hard <recorded HEAD>`, `git clean -fd` (never `-x`: ignored files stay); a command failing → stop. Then launch a new `rs-reviewer` once, same prompt plus `The previous review of this round was cancelled: it changed <what: the files of git status, the HEAD or the branch it moved>. Change nothing.` A second cancelled round in a row → stop: the report names what each changed.
+   3. After: spec or history fingerprint changed → stop: they are out of git, nothing restores them. Tree still clean, same `HEAD`, same branch → the round counts, go on. Otherwise the round is cancelled: not written to the history, not counted. Restore the workspace, resetting before switching so that local changes left by the reviewer can't make it fail: on `<branch>` → `git reset --hard <recorded HEAD>`; on another branch or a detached `HEAD` → `git switch --discard-changes <branch>` first (never reset another branch), then the reset; then `git clean -fd` (never `-x`: ignored files stay). A command failing → stop. Then launch a new `rs-reviewer` once, same prompt plus `The previous review of this round was cancelled: it changed <what: the files of git status, the HEAD or the branch it moved>. Change nothing.` A second cancelled round in a row → stop: the report names what each changed. Any stop in this step restores what it can first, and commits nothing of the cancelled reviewer's changes (section 5).
 3. Append the round to the history, with `HEAD` as the commit reviewed.
    OK → write `## Review notes` at the end of the spec ("Nothing" if none; an earlier section is replaced): the Worth noting items of every round in the history, verbatim, those flagged `[outside spec]` first. `/rs-ship` puts them in the pull request. Set `status: reviewed`. Go to section 6.
 4. KO:
@@ -150,13 +151,13 @@ Write every status change in the spec as it happens. The spec is never committed
             Rework the tests of this feature after review: <files>. The code is there. Don't commit.
             <the [tests] items, verbatim>
 
-        Check its report and the tree as in 2.2 and 2.3, except that reworked tests may pass. Commit `test(<slug>): rework the tests, review round <n>`, write `red: <its short sha>` in the spec. A reworked test fails → set `status: red`.
+        Check its report and the tree as in 2.2 and 2.3, except that reworked tests may pass. Commit `test(<slug>): rework the tests, review round <n>`, write `red: <its short sha>` in the spec, and append `red: <the replaced sha>` under the current `## Fix <n>` of the history. A reworked test fails → set `status: red`.
      2. `[code]` items, or reworked tests that fail → send them verbatim to the same dev, with the new red commit and tests if they changed (`SendMessage` to `dev`; no dev in this run, as after a resume → launch `rs-dev` named `dev` with the 3.1 prompt plus the items). Read its report as in 3.2, check the red files as in 3.3, commit `fix(<slug>): address review round <n>`, set `status: green`.
      3. Back to 4.1.
 
 ## 5. Stop
 
-- Commit whatever changed, without touching `status`: `chore(<slug>): work in progress, stopped at <red|green|review>`. A stop before any work has nothing to commit.
+- Commit whatever changed, without touching `status`: `chore(<slug>): work in progress, stopped at <red|green|review>`. A stop before any work has nothing to commit. A stop in 4.2 on a cancelled review or a changed fingerprint: restore as far as possible (4.2.3) and commit nothing: what a cancelled reviewer changed never goes in.
 - Report, then stop:
 
       <Title> — stopped at <red|green|review>, <branch>
