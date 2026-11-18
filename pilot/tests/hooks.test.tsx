@@ -26,6 +26,7 @@ const PROCESS_OK = {
 }
 
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
+const GET_SESSION = 'mcp__ccd_session_mgmt__get_session'
 
 // What the engine and the world answer beneath the plugin.
 function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
@@ -71,11 +72,17 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
   const app = {
     openAnswer: (): any => ({ result: {}, text: 'ok' }),
     askAnswer: async (): Promise<any> => ({ result: {} }),
+    // What `get_session self` answers: the app's id of the calling session.
+    selfAnswer: (): any => ({
+      result: {},
+      text: JSON.stringify({ sessionId: 'local_X' }),
+    }),
   }
   on('tool.call', (_: any, e: any) => {
     seen.tools.push(e)
     if (e.tool === OPEN_TOOL) return app.openAnswer()
     if (e.tool === 'AskUserQuestion') return app.askAnswer()
+    if (e.tool === GET_SESSION) return app.selfAnswer()
 
     return { result: {}, text: '[]' }
   })
@@ -125,8 +132,8 @@ const ASK = {
 } as const
 
 for (const outcome of ['answered', 'refused', 'failed'] as const) {
-  test(`AC5 — a pending question is published for its session, then removed once ${outcome}`, async ($, on) => {
-    const { clock, store, app } = world(on)
+  test(`open-session AC4 — a pending question is published with the app session id of its session, then removed once ${outcome}`, async ($, on) => {
+    const { clock, store, app, seen } = world(on)
     let release: () => void = () => {}
     const gate = new Promise<void>(resolve => (release = resolve))
     app.askAnswer = async () => {
@@ -143,10 +150,51 @@ for (const outcome of ['answered', 'refused', 'failed'] as const) {
     const pending = pendingQuestions(store)
     expect(pending).toHaveLength(1)
     expect(pending[0]).toMatchObject({
-      cwd: '/work/a',
+      sessionId: 'local_X',
       question: 'Which library?',
     })
     expect(pending[0]).toHaveProperty('at')
+    expect(
+      seen.tools.filter(e => e.tool === GET_SESSION)[0],
+    ).toMatchObject({ session_id: 'self' })
+
+    release()
+    await call
+    await clock.settle()
+
+    expect(pendingQuestions(store)).toHaveLength(0)
+  })
+}
+
+const SELF_FAILURES: Record<string, () => any> = {
+  refused: () => ({ deny: 'not allowed' }),
+  'an error result': () => ({ result: 'error', text: 'no such session', isError: true }),
+  'a throw': () => {
+    throw new Error('boom')
+  },
+  'no session': () => ({ result: {}, text: '[]' }),
+}
+
+for (const [failure, answer] of Object.entries(SELF_FAILURES)) {
+  test(`open-session AC4 — get_session ${failure}: the question is published without a session id and AskUserQuestion still runs`, async ($, on) => {
+    const { clock, store, app, seen } = world(on)
+    let release: () => void = () => {}
+    const gate = new Promise<void>(resolve => (release = resolve))
+    app.selfAnswer = answer
+    app.askAnswer = async () => {
+      await gate
+
+      return { result: {} }
+    }
+
+    const call = $.tool.call(ASK as any).catch(() => undefined)
+    await clock.settle()
+
+    const pending = pendingQuestions(store)
+    expect(pending).toHaveLength(1)
+    expect(pending[0]?.question).toBe('Which library?')
+    expect(pending[0]?.sessionId).toBeUndefined()
+    expect(seen.tools.filter(e => e.tool === 'AskUserQuestion')).toHaveLength(1)
 
     release()
     await call
