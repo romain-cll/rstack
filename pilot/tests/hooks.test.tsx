@@ -272,6 +272,10 @@ const ticketWith = (session?: typeof SESSION) => ({
   worktree: '/work/a',
   slug: 'alpha',
   title: 'Alpha feature',
+  id: 'SPOTIME-1',
+  name: 'Alpha feature',
+  section: 'running',
+  step: 3,
   status: 'red',
   branch: 'feat/alpha',
   session,
@@ -294,15 +298,23 @@ async function mountPane($: any, on: any, tickets: object[]) {
   return { ui, ...w }
 }
 
-async function pressOpen(ui: any) {
-  const button = await ui.find({ type: 'Button', text: /open/i })
+// The row's own Button (its name is in what it draws): never the plan toggle.
+async function pressRow(ui: any) {
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+  const button = buttons.find(
+    b =>
+      JSON.stringify(b).includes('Alpha feature') &&
+      !JSON.stringify(b).includes('Voir le plan'),
+  )
   if (button) await ui.press({ key: button.key })
+
+  return button
 }
 
-test('AC8 — Open focuses the ticket session in the app', async ($, on) => {
+test('AC9 — pressing the row focuses the ticket session in the app', async ($, on) => {
   const { ui, seen } = await mountPane($, on, [ticketWith(SESSION)])
 
-  await pressOpen(ui)
+  expect(await pressRow(ui)).toBeDefined()
 
   const opens = seen.tools.filter(e => e.tool === OPEN_TOOL)
   expect(opens).toHaveLength(1)
@@ -312,14 +324,14 @@ test('AC8 — Open focuses the ticket session in the app', async ($, on) => {
 })
 
 for (const failure of ['refused', 'an error result'] as const) {
-  test(`AC8 — Open runs \`open <link>\` when the app call is ${failure}`, async ($, on) => {
+  test(`AC9 — pressing the row runs \`open <link>\` when the app call is ${failure}`, async ($, on) => {
     const { ui, seen, app } = await mountPane($, on, [ticketWith(SESSION)])
     app.openAnswer = () =>
       failure === 'refused'
         ? { deny: 'not a session this one started' }
         : { result: 'error', text: 'refused', isError: true }
 
-    await pressOpen(ui)
+    expect(await pressRow(ui)).toBeDefined()
 
     expect(seen.processes.filter(argv => argv[0] === 'open')).toEqual([
       ['open', SESSION.link],
@@ -328,10 +340,10 @@ for (const failure of ['refused', 'an error result'] as const) {
   })
 }
 
-test('AC8 — a ticket with no session calls nothing', async ($, on) => {
+test('AC9 — pressing a ticket with no session calls nothing', async ($, on) => {
   const { ui, seen } = await mountPane($, on, [ticketWith(undefined)])
 
-  await pressOpen(ui)
+  await pressRow(ui)
 
   expect(seen.tools.filter(e => e.tool === OPEN_TOOL)).toHaveLength(0)
   expect(seen.processes.filter(argv => argv[0] === 'open')).toHaveLength(0)
@@ -389,6 +401,11 @@ async function pollShipped(
   return {
     rows: written[written.length - 1] as any[] | undefined,
     gh: w.seen.processes.filter(argv => argv[0] === 'gh'),
+    clock: w.clock,
+    ghCalls: () =>
+      w.seen.processes.filter(
+        argv => argv[0] === 'gh' && argv[1] === 'pr' && argv[3] === o.branch,
+      ).length,
   }
 }
 
@@ -421,5 +438,30 @@ for (const [i, c] of SHIPPED_CASES.entries()) {
     expect(gh.some(argv => argv.slice(0, 3).join(' ') === 'gh pr view' && argv[3] === branch)).toBe(true)
     expect(rows).toBeDefined()
     expect(rows!.filter(row => row.slug === 'alpha')).toHaveLength(c.kept ? 1 : 0)
+  })
+}
+
+// pilot-v2-ui AC8: polling every 10 s, `gh` is asked again for a PR once 60 s
+// have passed, except for a PR read MERGED or CLOSED, which is asked once.
+const LATER_CASES = [
+  { name: 'MERGED', pr: ghPr('MERGED'), asksAgain: false },
+  { name: 'CLOSED', pr: ghPr('CLOSED'), asksAgain: false },
+  { name: 'OPEN', pr: ghPr('OPEN'), asksAgain: true },
+  { name: 'gh failing', pr: { exitCode: 1, stdout: '' }, asksAgain: true },
+] as const
+
+for (const [i, c] of LATER_CASES.entries()) {
+  test(`AC8 — a shipped ticket's PR read ${c.name}: when the pilot polls again past 60 s, \`gh pr view\` is ${c.asksAgain ? 'run again' : 'not run again'}`, async ($, on) => {
+    const { clock, ghCalls } = await pollShipped($, on, {
+      branch: `feat/later-${i}`,
+      gh: c.pr,
+    })
+    expect(ghCalls()).toBe(1)
+
+    await clock.advance(130_000)
+    await clock.settle()
+
+    if (c.asksAgain) expect(ghCalls()).toBeGreaterThan(1)
+    else expect(ghCalls()).toBe(1)
   })
 }
