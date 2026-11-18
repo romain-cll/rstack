@@ -16,6 +16,7 @@ import {
   listTickets,
   parsePr,
   parseReview,
+  selfId,
   worktreePaths,
 } from './tickets'
 
@@ -119,7 +120,7 @@ export const register: Register = on => {
     const key = `${QUESTION_PREFIX}${await $.session.id()}`
     await $.store
       .set(key, {
-        cwd: await $.session.cwd(),
+        sessionId: selfId(await readSelf($)),
         question: e.questions[0]?.question,
         at: await $.clock.now(),
       })
@@ -159,12 +160,12 @@ export const register: Register = on => {
                 <Link href={row.pr.url}>{`PR ${row.pr.state}`}</Link> CI {row.pr.ci}
               </Text>
             )}
-            {row.session && (
+            {row.session && !row.session.isPilot && (
               <Button
                 key={`open-${row.worktree}/${row.slug}`}
                 onPress={() => openSession($, row.session!)}
               >
-                Open
+                Open session
               </Button>
             )}
           </Box>

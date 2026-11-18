@@ -2,6 +2,7 @@ export type PilotSession = {
   sessionId: string
   isRunning: boolean
   link: string
+  isPilot?: boolean
 }
 
 // One worktree's spec (or its bare session), as the reads find it.
@@ -23,7 +24,11 @@ export type PilotReview = {
 }
 
 // What a ticket session publishes while its AskUserQuestion is pending.
-export type PilotQuestion = { cwd: string; question: string; at: number }
+export type PilotQuestion = {
+  sessionId?: string
+  question: string
+  at: number
+}
 
 export type PilotState = {
   kind: string

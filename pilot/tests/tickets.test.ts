@@ -10,10 +10,12 @@
 //                object, same fields as an entry of `sessions`); missing,
 //                an error text or unparseable -> the list alone
 //     Ticket:    { worktree, slug?, title?, status?, branch?, red?,
-//                  session?: { sessionId, isRunning, link } }
+//                  session?: { sessionId, isRunning, link, isPilot? } }
+//                  (isPilot: true on the session taken from `self`)
 //   parseReview(text | undefined) -> { rounds, verdict, fixes, cap } | undefined
 //   deriveState(ticket, { review?, questions? }) -> { kind, ... }
-//     questions: [{ cwd, question, at }] (what the sessions publish)
+//     questions: [{ sessionId?, question, at }] (what the sessions publish;
+//       sessionId is the app session id, `local_…`, of the asking session)
 //   parsePr({ exitCode, stdout }) -> { state, url, ci } | undefined
 //     (the result of `gh pr view <branch> --json state,url,statusCheckRollup`)
 import { expect, test } from 'claude-code/testing'
@@ -260,6 +262,34 @@ test('AC2 — a pilot session missing or unreadable leaves the list alone', () =
   }
 })
 
+test('open-session AC1 — the session taken from self is marked as the pilot\'s own, a listed one is not', () => {
+  const tickets = listTickets({
+    worktrees: porcelain([WT_A, WT_B]),
+    files: {
+      [WT_A]: { 'a.md': spec({ title: 'A', status: 'ready' }) },
+      [WT_B]: { 'b.md': spec({ title: 'B', status: 'ready' }) },
+    },
+    sessions: JSON.stringify([session({ sessionId: 'sB', cwd: WT_B })]),
+    self: JSON.stringify(session({ sessionId: 'pilot', cwd: WT_A })),
+  })
+
+  expect(tickets.find(t => t.slug === 'a')?.session?.isPilot).toBe(true)
+  expect(tickets.find(t => t.slug === 'b')?.session?.isPilot).not.toBe(true)
+})
+
+test('open-session AC1 — with self missing or unreadable, no session is marked', () => {
+  const input = {
+    worktrees: porcelain([WT_A]),
+    files: { [WT_A]: { 'a.md': spec({ title: 'A', status: 'ready' }) } },
+    sessions: JSON.stringify([session({ sessionId: 'sA', cwd: WT_A })]),
+  }
+
+  for (const self of [undefined, '', 'Error: no such session', '{"oops":']) {
+    const tickets = listTickets({ ...input, self })
+    expect(tickets[0]?.session?.isPilot).not.toBe(true)
+  }
+})
+
 test('AC3 — a review history gives its rounds, last verdict, fixes and the cap', () => {
   const review = [
     '## Round 1 — KO — 2e88aea',
@@ -304,7 +334,7 @@ const ticket = (status: string | undefined, run?: boolean) => ({
       ? undefined
       : { sessionId: 's1', isRunning: run, link: 'claude://x/s1' },
 })
-const asked = { cwd: WT_A, question: 'Which one?', at: 1 }
+const asked = { sessionId: 's1', question: 'Which one?', at: 1 }
 const review = { rounds: 2, verdict: 'KO', fixes: 1, cap: 3 }
 
 test('AC4 — a pending question on a running session is awaiting answer, before anything else', () => {
@@ -316,17 +346,38 @@ test('AC4 — a pending question on a running session is awaiting answer, before
   ).toMatchObject({ kind: 'awaiting-answer', question: 'Which one?' })
 })
 
-test('AC4 — a question of another worktree, or of a stopped session, is ignored', () => {
-  const other = { ...asked, cwd: '/repo/.claude/worktrees/other' }
-  expect(
-    deriveState(ticket('ready', true), { questions: [other] }),
-  ).toMatchObject({ kind: 'in-dev', status: 'ready' })
+test('AC4 — a question of a stopped session is ignored', () => {
   expect(
     deriveState(ticket('draft', false), { questions: [asked] }),
   ).toMatchObject({ kind: 'awaiting-plan-validation' })
   const stopped = deriveState(ticket('red', false), { questions: [asked] })
   expect(stopped.kind).toBe('awaiting-answer')
   expect(stopped.question).toBeUndefined()
+})
+
+test('open-session AC2 — a question published by another session of the same worktree is ignored', () => {
+  const other = { ...asked, sessionId: 'local_other' }
+
+  expect(
+    deriveState(ticket('ready', true), { questions: [other] }),
+  ).toEqual(deriveState(ticket('ready', true), {}))
+  expect(
+    deriveState(ticket('draft', true), { questions: [other] }),
+  ).toEqual(deriveState(ticket('draft', true), {}))
+})
+
+test('open-session AC3 — a question published by the ticket\'s own session is awaiting answer with it', () => {
+  expect(
+    deriveState(ticket('ready', true), { questions: [asked] }),
+  ).toMatchObject({ kind: 'awaiting-answer', question: 'Which one?' })
+})
+
+test('open-session AC3 — a question with no session id is ignored', () => {
+  const anonymous = { question: 'Which one?', at: 1 }
+
+  expect(
+    deriveState(ticket('ready', true), { questions: [anonymous] }),
+  ).toEqual(deriveState(ticket('ready', true), {}))
 })
 
 test('AC4 — no session, whatever the status', () => {
