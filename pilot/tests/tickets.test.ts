@@ -18,13 +18,32 @@
 //       sessionId is the app session id, `local_…`, of the asking session)
 //   parsePr({ exitCode, stdout }) -> { state, url, ci } | undefined
 //     (the result of `gh pr view <branch> --json state,url,statusCheckRollup`)
+//
+// pilot-v2-ui adds:
+//   ticketId(title | undefined, slug) -> { id?, name }
+//   sections(rows) -> [{ id: 'toi' | 'running' | 'pr', rows, count }, ...]
+//     rows: { state: { kind }, since?: number (ms) }; sections in that order
+//   stepOf(status | undefined) -> 1..5
+//   waitingSince({ state, session? }) -> ms | undefined
+//     state.at: the pending question's `at`; session.lastActivityAt: ISO text
+//   elapsed(since, now) -> { n, unit: 'min' | 'h' | 'd' }
+//   reviewLine({ rounds, verdict, fixes, cap }) -> { rounds, cap, running }
+//     running: 'fix' | 'round' | undefined
+//   planSummary(text) -> string | undefined
 import { expect, test } from 'claude-code/testing'
 
 import {
   deriveState,
+  elapsed,
   listTickets,
   parsePr,
   parseReview,
+  planSummary,
+  reviewLine,
+  sections,
+  stepOf,
+  ticketId,
+  waitingSince,
 } from '../hooks/tickets'
 
 const MAIN = '/repo'
@@ -548,4 +567,269 @@ test('AC6 — gh failing leaves the PR unknown', () => {
   expect(
     parsePr({ exitCode: 1, stdout: '' }),
   ).toBeUndefined()
+})
+
+// ---- pilot-v2-ui ----
+
+test('pilot-v2-ui AC1 — the ticket id is taken out of the title, whatever its shape', () => {
+  const cases: [string, string][] = [
+    ['Dashboard (SPOTIME-192)', 'Dashboard'],
+    ['Export CSV — SPOTIME-279', 'Export CSV'],
+    ['Export CSV - SPOTIME-279', 'Export CSV'],
+    ['Export CSV · SPOTIME-279', 'Export CSV'],
+    ['SPOTIME-301: Export CSV', 'Export CSV'],
+    ['SPOTIME-301 - Export CSV', 'Export CSV'],
+    ['[SPOTIME-188] Login magic link', 'Login magic link'],
+  ]
+  const ids = ['SPOTIME-192', 'SPOTIME-279', 'SPOTIME-279', 'SPOTIME-279', 'SPOTIME-301', 'SPOTIME-301', 'SPOTIME-188']
+
+  for (const [i, [title, name]] of cases.entries()) {
+    const found = ticketId(title, 'slug')
+    expect(found.id).toBe(ids[i])
+    expect(found.name).toBe(name)
+  }
+})
+
+test('pilot-v2-ui AC1 — a title with no id keeps its name, no title falls back to the slug', () => {
+  const plain = ticketId('Alpha feature', 'alpha')
+  expect(plain.id).toBeUndefined()
+  expect(plain.name).toBe('Alpha feature')
+
+  const none = ticketId(undefined, 'alpha')
+  expect(none.id).toBeUndefined()
+  expect(none.name).toBe('alpha')
+})
+
+const rowOf = (slug: string, kind: string, since?: number) => ({
+  slug,
+  state: { kind },
+  since,
+})
+
+test('pilot-v2-ui AC2 — states are grouped in toi, running and pr, in that order, with their counts', () => {
+  const rows = [
+    rowOf('pr1', 'shipped'),
+    rowOf('run1', 'planning'),
+    rowOf('toi1', 'awaiting-answer', 100),
+    rowOf('run2', 'in-dev'),
+    rowOf('toi2', 'awaiting-plan-validation', 200),
+    rowOf('run3', 'review'),
+    rowOf('toi3', 'no-session'),
+    rowOf('run4', 'shipping'),
+    rowOf('run5', 'no-spec'),
+  ]
+
+  const grouped = sections(rows)
+
+  expect(grouped.map(s => s.id)).toEqual(['toi', 'running', 'pr'])
+  expect(grouped.map(s => s.count)).toEqual([3, 5, 1])
+  expect(grouped[0]!.rows.map(r => r.slug).sort()).toEqual(['toi1', 'toi2', 'toi3'])
+  expect(grouped[1]!.rows.map(r => r.slug).sort()).toEqual(['run1', 'run2', 'run3', 'run4', 'run5'])
+  expect(grouped[2]!.rows.map(r => r.slug)).toEqual(['pr1'])
+})
+
+test('pilot-v2-ui AC2 — in toi the row waiting longest comes first, a row with no wait time last', () => {
+  const grouped = sections([
+    rowOf('none', 'no-session'),
+    rowOf('recent', 'awaiting-answer', 3000),
+    rowOf('oldest', 'awaiting-plan-validation', 1000),
+    rowOf('middle', 'awaiting-answer', 2000),
+  ])
+
+  expect(grouped[0]!.id).toBe('toi')
+  expect(grouped[0]!.rows.map(r => r.slug)).toEqual(['oldest', 'middle', 'recent', 'none'])
+})
+
+test('pilot-v2-ui AC3 — the step of a status out of 5', () => {
+  expect(stepOf('draft')).toBe(1)
+  expect(stepOf(undefined)).toBe(1)
+  expect(stepOf('ready')).toBe(2)
+  expect(stepOf('red')).toBe(3)
+  expect(stepOf('green')).toBe(4)
+  expect(stepOf('reviewed')).toBe(5)
+  expect(stepOf('shipped')).toBe(5)
+})
+
+const STOPPED_AT = '2026-11-18T10:00:00.000Z'
+const stoppedSession = {
+  sessionId: 's1',
+  isRunning: false,
+  link: 'claude://x/s1',
+  lastActivityAt: STOPPED_AT,
+}
+
+test('pilot-v2-ui AC4 — the wait of a pending question starts at its `at`', () => {
+  expect(
+    waitingSince({
+      state: { kind: 'awaiting-answer', question: 'Which one?', at: 5000 },
+      session: { ...stoppedSession, isRunning: true },
+    }),
+  ).toBe(5000)
+
+  // deriveState carries the question's `at` on the state it builds.
+  const state = deriveState(ticket('red', true), {
+    questions: [{ ...asked, at: 7000 }],
+  })
+  expect(waitingSince({ state, session: { ...stoppedSession, isRunning: true } })).toBe(7000)
+})
+
+test('pilot-v2-ui AC4 — without a question the wait starts at the stopped session last activity', () => {
+  const since = Date.parse(STOPPED_AT)
+
+  expect(
+    waitingSince({ state: { kind: 'awaiting-plan-validation' }, session: stoppedSession }),
+  ).toBe(since)
+  expect(
+    waitingSince({ state: { kind: 'awaiting-answer' }, session: stoppedSession }),
+  ).toBe(since)
+})
+
+test('pilot-v2-ui AC4 — a row with no session, or outside toi, has no wait start', () => {
+  expect(waitingSince({ state: { kind: 'no-session' } })).toBeUndefined()
+  for (const kind of ['planning', 'in-dev', 'review', 'shipping', 'no-spec', 'shipped']) {
+    expect(waitingSince({ state: { kind }, session: stoppedSession })).toBeUndefined()
+  }
+})
+
+test('pilot-v2-ui AC4 — the elapsed time is floored to minutes, hours, then days', () => {
+  const MIN = 60_000
+  const H = 60 * MIN
+  const D = 24 * H
+  const at = (ms: number) => elapsed(1_000_000, 1_000_000 + ms)
+
+  expect(at(0)).toEqual({ n: 0, unit: 'min' })
+  expect(at(59_999)).toEqual({ n: 0, unit: 'min' })
+  expect(at(MIN)).toEqual({ n: 1, unit: 'min' })
+  expect(at(12 * MIN + 30_000)).toEqual({ n: 12, unit: 'min' })
+  expect(at(H - 1)).toEqual({ n: 59, unit: 'min' })
+  expect(at(H)).toEqual({ n: 1, unit: 'h' })
+  expect(at(5 * H + 59 * MIN)).toEqual({ n: 5, unit: 'h' })
+  expect(at(D - 1)).toEqual({ n: 23, unit: 'h' })
+  expect(at(D)).toEqual({ n: 1, unit: 'd' })
+  expect(at(3 * D + 20 * H)).toEqual({ n: 3, unit: 'd' })
+})
+
+test('pilot-v2-ui AC5 — the review line gives rounds, cap and what runs now', () => {
+  // KO with fewer fixes than KO rounds: the fix runs.
+  expect(reviewLine({ rounds: 1, verdict: 'KO', fixes: 0, cap: 3 })).toEqual({
+    rounds: 1,
+    cap: 3,
+    running: 'fix',
+  })
+  expect(reviewLine({ rounds: 2, verdict: 'KO', fixes: 1, cap: 3 })).toEqual({
+    rounds: 2,
+    cap: 3,
+    running: 'fix',
+  })
+  // KO with as many fixes as KO rounds: the next round runs.
+  expect(reviewLine({ rounds: 2, verdict: 'KO', fixes: 2, cap: 3 })).toEqual({
+    rounds: 2,
+    cap: 3,
+    running: 'round',
+  })
+  // OK: nothing runs.
+  const ok = reviewLine({ rounds: 3, verdict: 'OK', fixes: 2, cap: 3 })
+  expect(ok).toMatchObject({ rounds: 3, cap: 3 })
+  expect(ok.running).toBeUndefined()
+})
+
+test('pilot-v2-ui AC6 — the main checkout with a session and no spec yields no row, another worktree still does', () => {
+  const tickets = listTickets({
+    worktrees: porcelain([MAIN, WT_A]),
+    files: { [MAIN]: {}, [WT_A]: {} },
+    sessions: JSON.stringify([
+      session({ sessionId: 'sMain', cwd: MAIN }),
+      session({ sessionId: 'sA', cwd: WT_A }),
+    ]),
+  })
+
+  expect(tickets).toHaveLength(1)
+  expect(tickets[0]?.worktree).toBe(WT_A)
+  expect(tickets[0]?.slug).toBeUndefined()
+  expect(tickets[0]?.session?.sessionId).toBe('sA')
+})
+
+test('pilot-v2-ui AC4 — a ticket\'s session keeps its last activity', () => {
+  const tickets = listTickets({
+    worktrees: porcelain([MAIN, WT_A]),
+    files: { [MAIN]: {}, [WT_A]: { 'a.md': spec({ title: 'A', status: 'draft' }) } },
+    sessions: JSON.stringify([
+      session({ sessionId: 'sA', cwd: WT_A, lastActivityAt: STOPPED_AT }),
+    ]),
+  })
+
+  expect(tickets[0]?.session?.lastActivityAt).toBe(STOPPED_AT)
+})
+
+const SPEC_TEXT = [
+  '---',
+  'status: draft',
+  '---',
+  '',
+  '# Title of the feature',
+  '',
+  '## User story',
+  'As a user, I want STORY-BODY.',
+  '',
+  '## Acceptance criteria',
+  '- [ ] AC1 — CRITERIA-BODY',
+  '',
+  '### A sub heading',
+  'SUB-BODY',
+  '',
+  '## Out of scope',
+  '- OUT-BODY',
+  '',
+  '## Technical plan',
+  'PLAN-BODY',
+].join('\n')
+
+test('pilot-v2-ui AC7 — the plan summary is the user story then the acceptance criteria, headings included, nothing else', () => {
+  const summary = planSummary(SPEC_TEXT)!
+
+  expect(summary.startsWith('## User story')).toBe(true)
+  expect(summary).toContain('STORY-BODY')
+  expect(summary).toContain('## Acceptance criteria')
+  expect(summary).toContain('CRITERIA-BODY')
+  expect(summary).toContain('SUB-BODY')
+  expect(summary.indexOf('## Acceptance criteria')).toBeGreaterThan(
+    summary.indexOf('STORY-BODY'),
+  )
+  for (const other of ['status: draft', 'Title of the feature', '## Out of scope', 'OUT-BODY', 'PLAN-BODY']) {
+    expect(summary).not.toContain(other)
+  }
+})
+
+test('pilot-v2-ui AC7 — the two sections come in that order whatever their order in the spec', () => {
+  const reversed = [
+    '# T',
+    '## Acceptance criteria',
+    '- CRITERIA-BODY',
+    '## User story',
+    'STORY-BODY',
+    '## Technical plan',
+    'PLAN-BODY',
+  ].join('\n')
+  const summary = planSummary(reversed)!
+
+  expect(summary.indexOf('## User story')).toBeLessThan(
+    summary.indexOf('## Acceptance criteria'),
+  )
+  expect(summary).toContain('STORY-BODY')
+  expect(summary).toContain('CRITERIA-BODY')
+  expect(summary).not.toContain('PLAN-BODY')
+})
+
+test('pilot-v2-ui AC7 — a spec missing one section gives the other, missing both gives none', () => {
+  const onlyStory = planSummary('# T\n\n## User story\nSTORY-BODY\n\n## Technical plan\nPLAN-BODY\n')!
+  expect(onlyStory).toContain('## User story')
+  expect(onlyStory).toContain('STORY-BODY')
+  expect(onlyStory).not.toContain('PLAN-BODY')
+
+  const onlyCriteria = planSummary('# T\n\n## Acceptance criteria\n- CRITERIA-BODY\n\n## Technical plan\nPLAN-BODY\n')!
+  expect(onlyCriteria).toContain('## Acceptance criteria')
+  expect(onlyCriteria).toContain('CRITERIA-BODY')
+  expect(onlyCriteria).not.toContain('PLAN-BODY')
+
+  expect(planSummary('# T\n\n## Technical plan\nPLAN-BODY\n')).toBeUndefined()
 })
