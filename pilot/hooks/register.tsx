@@ -12,14 +12,16 @@ import {
 } from './collect'
 import type { Pr } from './tickets'
 import {
+  counters,
   deriveState,
   elapsed,
   listTickets,
   parseReview,
-  planSummary,
+  planFacts,
   reviewLine,
   sectionOf,
   sections,
+  segments,
   selfId,
   stepOf,
   ticketId,
@@ -36,7 +38,7 @@ const POLL_MS = 10_000
 const PR_MS = 60_000
 
 const tickets = { plugin: 'pilot', key: 'tickets' } as const
-const shown = { plugin: 'pilot', key: 'shown' } as const
+const polledAt = { plugin: 'pilot', key: 'polledAt' } as const
 const main = { plugin: 'pilot', key: 'main' } as const
 
 // Per branch: the last `gh` or `glab` answer and when it was asked. A PR read MERGED or
@@ -57,6 +59,7 @@ async function prOf($: Engine, worktree: string, branch: string) {
 }
 
 async function poll($: Engine) {
+  const collectedAt = await $.clock.now()
   const porcelain = await readWorktrees($)
   const files = await readFiles($, worktreePaths(porcelain))
   const listed = listTickets({
@@ -88,7 +91,7 @@ async function poll($: Engine) {
       section: sectionOf(state.kind),
       step: stepOf(ticket.status),
       since: waitingSince({ state, session: ticket.session }),
-      plan: spec === undefined ? undefined : planSummary(spec),
+      facts: spec === undefined ? undefined : planFacts(spec),
       state,
       review,
       pr,
@@ -96,6 +99,7 @@ async function poll($: Engine) {
   }
   await $.state.set(main, worktreePaths(porcelain)[0]?.split('/').pop() ?? '')
   await $.state.set(tickets, JSON.parse(JSON.stringify(rows)))
+  await $.state.set(polledAt, collectedAt)
 }
 
 async function startPolling($: Engine, id: string) {
@@ -171,101 +175,244 @@ export const register: Register = on => {
     return next(e)
   })
 
+
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button, Link, Markdown } = $.ui.resolve(e)
+    const { Box, Text, Button, Link } = $.ui.resolve(e)
     const { value: rows = [] } = await $.state.get(tickets)
-    const open = (await $.state.get(shown)).value
     const folder = (await $.state.get(main)).value
+    const collected = (await $.state.get(polledAt)).value
     const now = await $.clock.now()
     const grouped = sections(rows)
-    const count = (id: string) => grouped.find(g => g.id === id)?.count ?? 0
+    const count = counters(rows)
 
-    const togglePlan = async (key: string) => {
-      const current = (await $.state.get(shown)).value
-      await $.state.set(shown, current === key ? '' : key)
+    if (e.props.placement === 'widget') {
+      // The first of À toi is the row that has waited longest.
+      const first = grouped.find(g => g.id === 'toi')?.rows[0]
+
+      return (
+        <Box flexDirection="column" gap={1}>
+          <Box justifyContent="space-between">
+            <Text weight="semibold">Pilot</Text>
+            <Text color="inverseText" backgroundColor="warning">
+              {` ${count.toi} à toi `}
+            </Text>
+          </Box>
+          <Box gap={1}>
+            {rows.map(row => (
+              <Text key={`${row.worktree}/${row.slug}`} color={edgeOf(row)}>
+                ■
+              </Text>
+            ))}
+          </Box>
+          <Text size="caption" dimColor>
+            {first
+              ? `${first.id ?? first.name} ${WAITS[first.state.kind] ?? ''}`.trim()
+              : "Rien ne t'attend."}
+          </Text>
+        </Box>
+      )
     }
+
+    const openable = (row: PilotRow) =>
+      row.session && !row.session.isPilot ? row.session : undefined
+    const nameOf = (row: PilotRow, key: string) => {
+      const session = openable(row)
+
+      return session ? (
+        <Button key={`${key}:name`} plain onPress={() => void openSession($, session)}>
+          {row.name}
+        </Button>
+      ) : (
+        <Text weight="medium">{row.name}</Text>
+      )
+    }
+    const idOf = (row: PilotRow) =>
+      row.id && (
+        <Text mono dimColor>
+          {row.id}
+        </Text>
+      )
+    // A card: a 1-cell edge colored by the row, then its lines.
+    const card = (key: string, edge: string, lines: unknown) => (
+      <Box key={key} borderStyle="single" borderColor="inactive">
+        <Box width={1} backgroundColor={edge} />
+        <Box flexDirection="column" flexGrow={1} paddingX={1}>
+          {lines as never}
+        </Box>
+      </Box>
+    )
+    const tile = (n: number, label: string, color?: string) => (
+      <Box
+        key={label}
+        flexDirection="column"
+        flexGrow={1}
+        paddingX={1}
+        borderStyle="single"
+        borderColor={color ?? 'inactive'}
+      >
+        <Text size="heading" weight="semibold" color={color}>
+          {String(n)}
+        </Text>
+        <Text size="caption" color={color} dimColor={color === undefined}>
+          {label}
+        </Text>
+      </Box>
+    )
+    let hotkey = 0
 
     return (
       <Box flexDirection="column" gap={1}>
         <Box justifyContent="space-between">
-          <Text bold>
-            {typeof folder === 'string' ? folder.toUpperCase() : 'PILOT'} ·{' '}
-            {rows.length} {rows.length === 1 ? 'ticket' : 'tickets'}
-          </Text>
-          <Text dimColor>
-            À toi {count('toi')} · En cours {count('running')} · PR {count('pr')}
-          </Text>
+          <Box gap={1}>
+            <Text weight="semibold">Pilot</Text>
+            {typeof folder === 'string' && <Text dimColor>{folder}</Text>}
+          </Box>
+          <Box gap={1}>
+            {typeof collected === 'number' && (
+              <Text size="caption" dimColor>
+                {`collecte à ${clock(collected)}`}
+              </Text>
+            )}
+            <Button key="refresh" onPress={() => void poll($).catch(() => undefined)}>
+              Actualiser
+            </Button>
+          </Box>
+        </Box>
+        <Box gap={1}>
+          {tile(count.toi, "t'attendent", 'warning')}
+          {tile(count.dev, 'en dev')}
+          {tile(count.review, 'en review')}
+          {tile(count.pr, 'PR ouvertes')}
         </Box>
         {rows.length === 0 && <Text dimColor>Aucun ticket.</Text>}
         {grouped
           .filter(section => section.count > 0)
           .map(section => (
             <Box key={section.id} flexDirection="column" gap={1}>
-              <Text bold color={section.id === 'toi' ? 'claude' : 'subtle'}>
-                {SECTION_TITLES[section.id]} ({section.count})
+              <Text size="caption" dimColor>
+                {SECTION_TITLES[section.id]}
               </Text>
-              {section.rows.map(row => {
-                const key = `${row.worktree}/${row.slug}`
-                const session = row.session
-                const press =
-                  session && !session.isPilot
-                    ? () => void openSession($, session)
-                    : undefined
-                const mark = (
-                  <Text color="claude">{section.id === 'toi' ? '┃' : ' '}</Text>
-                )
+              {section.id === 'pr' ? (
+                <Box
+                  flexDirection="column"
+                  borderStyle="single"
+                  borderColor="inactive"
+                  paddingX={1}
+                >
+                  {section.rows.map((row, i) => {
+                    const key = `${row.worktree}/${row.slug}`
+                    const pr = row.pr
+                    const ci = pr && CI[pr.ci as keyof typeof CI]
 
-                return (
-                  <Box key={key} flexDirection="column">
-                    {/* Only the name is a Button: the desktop draws a Button's
-                        label as plain text and drops the style of every Text in it. */}
-                    <Box gap={1}>
-                      {mark}
-                      {row.id && (
-                        <Text mono color="inverseText" backgroundColor="text">
-                          {` ${row.id} `}
-                        </Text>
-                      )}
-                      {press ? (
-                        <Button key={`${key}:name`} plain onPress={press}>
-                          {row.name}
-                        </Button>
-                      ) : (
-                        <Text bold>{row.name}</Text>
-                      )}
-                    </Box>
-                    <Box justifyContent="space-between">
-                      <Box gap={1}>
-                        {mark}
-                        <Text dimColor>{describe(row, now)}</Text>
-                        <Text>
-                          <Text color="suggestion">{'●'.repeat(row.step)}</Text>
-                          <Text color="inactive">{'○'.repeat(5 - row.step)}</Text>
-                        </Text>
+                    return (
+                      <Box key={key} flexDirection="column">
+                        {i > 0 && (
+                          <Text dimColor wrap="clip">
+                            {'─'.repeat(Math.max(0, e.props.bodyColumns - 4))}
+                          </Text>
+                        )}
+                        <Box justifyContent="space-between">
+                          <Box gap={1}>
+                            {pr?.number !== undefined && (
+                              <Text mono dimColor>
+                                {`${pr.kind === 'mr' ? '!' : '#'}${pr.number}`}
+                              </Text>
+                            )}
+                            {nameOf(row, key)}
+                          </Box>
+                          <Box gap={1}>
+                            {ci && (
+                              <Text color={ci.color}>{`${ci.icon} CI`}</Text>
+                            )}
+                            {pr && (
+                              <Link href={pr.url}>{pr.kind === 'mr' ? 'MR' : 'PR'}</Link>
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    )
+                  })}
+                </Box>
+              ) : (
+                section.rows.map(row => {
+                  const key = `${row.worktree}/${row.slug}`
+                  const since =
+                    row.since !== undefined ? elapsed(row.since, now) : undefined
+
+                  if (section.id === 'toi') {
+                    const session = openable(row)
+                    const plan = row.state.kind === 'awaiting-plan-validation'
+                    const press = session && hotkey < 9 ? (hotkey += 1) : undefined
+
+                    return card(
+                      key,
+                      'warning',
+                      <>
+                        <Box gap={1}>
+                          <Text color="warning">{plan ? '☑' : '?'}</Text>
+                          {idOf(row)}
+                          {nameOf(row, key)}
+                        </Box>
+                        <Text dimColor>{toiLine(row)}</Text>
+                        <Box justifyContent="space-between">
+                          <Text size="caption" dimColor>
+                            {since
+                              ? `depuis ${since.n} ${since.unit === 'd' ? 'j' : since.unit}`
+                              : ''}
+                          </Text>
+                          {session && (
+                            <Button
+                              key={`${key}:action`}
+                              variant="secondary"
+                              hotkey={press === undefined ? undefined : String(press)}
+                              onPress={() => void openSession($, session)}
+                            >
+                              {plan ? 'Voir le plan' : 'Répondre'}
+                            </Button>
+                          )}
+                        </Box>
+                      </>,
+                    )
+                  }
+
+                  const color = edgeOf(row)
+
+                  return card(
+                    key,
+                    color,
+                    <>
+                      <Box justifyContent="space-between">
+                        <Box gap={1}>
+                          {idOf(row)}
+                          {nameOf(row, key)}
+                        </Box>
+                        <Text color={color}>{runningStatus(row)}</Text>
                       </Box>
                       <Box gap={1}>
-                        {row.pr && (
-                          <Link href={row.pr.url}>{row.pr.kind === 'mr' ? 'MR' : 'PR'}</Link>
-                        )}
-                        {row.plan && (
-                          <Button
-                            key={`plan:${key}`}
-                            onPress={() => void togglePlan(key)}
-                          >
-                            {open === key ? 'Masquer le plan' : 'Voir le plan'}
-                          </Button>
-                        )}
+                        {segments(row.step).map(segment => (
+                          <Box
+                            key={segment.name}
+                            flexGrow={1}
+                            height={1}
+                            backgroundColor={
+                              segment.state === 'done'
+                                ? 'success'
+                                : segment.state === 'current'
+                                  ? color
+                                  : 'inactive'
+                            }
+                          />
+                        ))}
                       </Box>
-                    </Box>
-                    {row.state.question && (
-                      <Text color="warning">{`  ${row.state.question}`}</Text>
-                    )}
-                    {open === key && row.plan && (
-                      <Markdown key={`md:${key}`} text={row.plan} />
-                    )}
-                  </Box>
-                )
-              })}
+                    </>,
+                  )
+                })
+              )}
+              {section.id === 'running' && (
+                <Text size="caption" dimColor>
+                  plan · rouge · vert · review · ship
+                </Text>
+              )}
             </Box>
           ))}
       </Box>
@@ -273,44 +420,69 @@ export const register: Register = on => {
   })
 }
 
-const SECTION_TITLES = { toi: 'À TOI', running: 'EN COURS', pr: 'PR' } as const
+const SECTION_TITLES = { toi: 'À toi', running: 'En cours', pr: 'PR' } as const
 
 const LABELS: Record<string, string> = {
   'awaiting-answer': 'Réponse attendue',
   'awaiting-plan-validation': 'Plan à valider',
   'no-session': 'Pas de session',
-  planning: 'Plan en cours',
-  'in-dev': 'En dev',
-  shipping: 'Ship en cours',
-  'no-spec': 'Pas de spec',
 }
 
-const CI = { passing: 'CI ✓', failing: 'CI ✗', pending: 'CI …' } as const
+const WAITS: Record<string, string> = {
+  'awaiting-answer': 'attend une réponse',
+  'awaiting-plan-validation': 'attend la validation du plan',
+  'no-session': "n'a pas de session",
+}
 
-// The dim line under a row's title, without the progress dots.
-function describe(row: PilotRow, now: number): string {
+const CI = {
+  passing: { icon: '✓', color: 'success' },
+  pending: { icon: '◷', color: 'warning' },
+  failing: { icon: '✕', color: 'error' },
+} as const
+
+// The color of a row's edge: by who has the ball, then by its step (plan,
+// red, green, review, ship).
+const STEP_COLORS = ['inactive', 'error', 'success', 'suggestion', 'inactive']
+
+function edgeOf(row: PilotRow): string {
+  if (row.section === 'toi') return 'warning'
+  if (row.section === 'pr') return 'success'
+
+  return STEP_COLORS[row.step - 1] ?? 'inactive'
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// The local time, HH:MM.
+function clock(at: number): string {
+  const date = new Date(at)
+  const two = (n: number) => String(n).padStart(2, '0')
+
+  return `${two(date.getHours())}:${two(date.getMinutes())}`
+}
+
+// The line under a toi row's title: the question, else what the plan holds,
+// else the state's label.
+function toiLine(row: PilotRow): string {
+  const { kind, question } = row.state
+  if (question) return question
+  if (kind === 'awaiting-plan-validation' && row.facts) {
+    return `Plan prêt · ${plural(row.facts.criteria, 'critère')} · ${plural(row.facts.files, 'fichier')}`
+  }
+
+  return LABELS[kind] ?? kind
+}
+
+// The short status on the right of an En cours row.
+function runningStatus(row: PilotRow): string {
   const { kind } = row.state
-  const parts: string[] = []
-  if (kind === 'shipped') {
-    const pr = row.pr
-    if (pr?.number !== undefined) {
-      parts.push(`${pr.kind === 'mr' ? '!' : '#'}${pr.number}`)
-    }
-    const ci = CI[pr?.ci as keyof typeof CI]
-    if (ci) parts.push(ci)
-    if (pr?.state === 'OPEN' && pr.ci === 'passing') parts.push('prête à merger')
-    if (parts.length === 0) parts.push('PR')
-  } else if (kind === 'review' && row.review) {
-    const { rounds, cap, running } = reviewLine(row.review)
-    parts.push(`Review ${rounds}/${cap}`)
-    if (running) parts.push(`${running} en cours`)
-  } else {
-    parts.push(LABELS[kind] ?? kind)
+  if (kind === 'no-spec') return 'pas de spec'
+  if (kind === 'review' && row.review) {
+    return `review ${row.review.rounds}/${row.review.cap} · ${row.review.fixes} fix`
   }
-  if (row.since !== undefined) {
-    const { n, unit } = elapsed(row.since, now)
-    parts.push(`depuis ${n} ${unit === 'd' ? 'j' : unit}`)
+  if (row.step === 2) {
+    return row.facts ? `rouge · ${plural(row.facts.criteria, 'critère')}` : 'rouge'
   }
 
-  return parts.join(' · ')
+  return ['plan en cours', '', 'vert · en dev', 'review', 'ship en cours'][row.step - 1] ?? ''
 }
