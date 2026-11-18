@@ -58,7 +58,7 @@ export type PilotRow = PilotTicket & {
   section: 'toi' | 'running' | 'pr'
   step: number
   since?: number
-  plan?: string
+  facts?: { criteria: number; files: number }
   state: PilotState
   review?: PilotReview
   pr?: PilotPr
@@ -66,6 +66,6 @@ export type PilotRow = PilotTicket & {
 
 declare module 'claude-code' {
   interface PluginState {
-    pilot: { tickets: PilotRow[]; shown?: string; main?: string }
+    pilot: { tickets: PilotRow[]; main?: string; polledAt?: number }
   }
 }

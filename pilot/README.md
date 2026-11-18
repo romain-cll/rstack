@@ -33,19 +33,33 @@ First match wins.
 
 ## What the pane shows
 
-A header with the main checkout's folder name in capitals, the number of rows and a count per section, then the sections, empty ones left out:
+The pane is drawn in two ways, by where the desktop seats it: a dock view, and a widget view when the person minimizes it to a widget.
 
-| Section | States |
-|---|---|
-| À toi | awaiting answer, awaiting plan validation, no session: the row waiting longest first, marked with the accent |
-| En cours | planning, in dev, review, shipping, no spec |
-| PR | shipped |
+### Dock view
 
-Each row is two lines. The first has the ticket id (`SPOTIME-192`, taken out of the spec title: `Dashboard (SPOTIME-192)`, `Export CSV — SPOTIME-279`, `SPOTIME-301: Export CSV`, `[SPOTIME-188] Login`) and the name. The second has the state's label, how long the row has waited in À toi (`depuis 12 min`: since its pending question, else since its stopped session last did something), the progress as dots over plan, red, green, review, ship, the review line (`Review 2/3 · fix en cours`) or the PR line (`#412 · CI ✓ · prête à merger`). A pending question is shown under its row.
+- A header: `Pilot` and the main checkout's folder name, on the right `collecte à <HH:MM>` (the local time of the last collect) and a `Actualiser` Button that collects at once, without waiting for the 10 s tick.
+- Four tiles: `t'attendent` (rows in À toi), `en dev` (the other rows of En cours), `en review`, `PR ouvertes`.
+- The sections, empty ones left out, each row a card with a colored edge:
 
-Pressing a row focuses the ticket's session in the app; when the app refuses, it runs `open` on the session's `claude://` link. The pilot's own row, and a row with no session, are not pressable. Voir le plan shows the spec's user story and acceptance criteria under the row.
+| Section | States | Card |
+|---|---|---|
+| À toi | awaiting answer, awaiting plan validation, no session: the row waiting longest first | `warning` edge; the id and name; the pending question, else `Plan prêt · <n> critères · <n> fichiers`, else the state's label; `depuis 12 min`; an action Button |
+| En cours | planning, in dev, review, shipping, no spec | edge colored by the step (red `error`, green `success`, review `suggestion`, plan and ship `inactive`); a short status on the right (`rouge · 6 critères`, `vert · en dev`, `review 2/3 · 1 fix`); five progress segments over plan, red, green, review, ship |
+| PR | shipped | one bordered list: `#412` or `!100`, the name, the CI state (`✓`, `◷`, `✕`) and the `PR` or `MR` link |
 
-There is no control to validate a plan or answer a question from the pane: the app delivers a message sent from another session as a peer's, which a session at a gate does not take as its user's answer. Validate in the ticket's session, which the row opens.
+The ticket id (`SPOTIME-192`) is taken out of the spec title: `Dashboard (SPOTIME-192)`, `Export CSV — SPOTIME-279`, `SPOTIME-301: Export CSV`, `[SPOTIME-188] Login`.
+
+Pressing the name of an En cours or PR row focuses the ticket's session in the app; when the app refuses, it runs `open` on the session's `claude://` link. The pilot's own row, and a row with no session, are not pressable.
+
+### Hotkeys
+
+A row in À toi with a session has an action Button, `Répondre` or `Voir le plan`, that opens the session the same way. They take the hotkeys `1`, `2`, … in the order of the rows (up to 9), pressed while the pane holds the focus. A row with no session has none.
+
+### Widget view
+
+`Pilot` and a `<n> à toi` pill, a row of squares (one per ticket, colored as its edge: `warning` in À toi, `success` for a PR), and one line for the first row of À toi: `<id> attend une réponse` or `attend la validation du plan`.
+
+There is no control to validate a plan or answer a question from the pane: the app delivers a message sent from another session as a peer's, which a session at a gate does not take as its user's answer. Validate in the ticket's session, which the action Button opens.
 
 ## What the pane hides
 

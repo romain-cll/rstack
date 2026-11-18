@@ -406,3 +406,46 @@ export function planSummary(text: string): string | undefined {
 
   return parts.length > 0 ? parts.join('\n\n') : undefined
 }
+
+// The tiles' numbers: what waits for the user, what is in review, the rest of
+// what runs, the pull requests.
+export function counters(
+  rows: { section: SectionId; state: { kind: string } }[],
+): { toi: number; review: number; dev: number; pr: number } {
+  const inSection = (id: SectionId) => rows.filter(row => row.section === id)
+  const running = inSection('running')
+  const review = running.filter(row => row.state.kind === 'review').length
+
+  return {
+    toi: inSection('toi').length,
+    review,
+    dev: running.length - review,
+    pr: inSection('pr').length,
+  }
+}
+
+// What a spec says of its plan: its acceptance criteria and its files.
+export function planFacts(text: string): { criteria: number; files: number } {
+  let criteria = 0
+  let files = 0
+  let inFiles = false
+  for (const line of text.split('\n')) {
+    if (line.startsWith('#')) inFiles = /^###\s+Files\s*$/.test(line)
+    else if (/^- \[[ x]\] AC\d+/.test(line)) criteria += 1
+    else if (inFiles && line.startsWith('- ')) files += 1
+  }
+
+  return { criteria, files }
+}
+
+const SEGMENTS = ['plan', 'red', 'green', 'review', 'ship'] as const
+
+// The five segments of a ticket's progress bar, from its step (1 to 5).
+export function segments(
+  step: number,
+): { name: (typeof SEGMENTS)[number]; state: 'done' | 'current' | 'todo' }[] {
+  return SEGMENTS.map((name, i) => ({
+    name,
+    state: i + 1 < step ? 'done' : i + 1 === step ? 'current' : 'todo',
+  }))
+}
