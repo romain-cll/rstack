@@ -941,7 +941,7 @@ test('pilot-v3-ui AC1 — counters: toi, review, dev (the other running rows) an
     'review',
     'review',
     'shipped',
-  ].map(rowOf)
+  ].map(counted)
 
   expect(counters(rows)).toEqual({ toi: 4, review: 2, dev: 5, pr: 1 })
   expect(counters([])).toEqual({ toi: 0, review: 0, dev: 0, pr: 0 })
