@@ -42,7 +42,14 @@ export type PilotState = {
   cap?: number
 }
 
-export type PilotPr = { state: string; url: string; ci: string; number?: number }
+// `kind` is 'mr' for a GitLab merge request, absent for a GitHub pull request.
+export type PilotPr = {
+  state: string
+  url: string
+  ci: string
+  number?: number
+  kind?: 'mr'
+}
 
 // A ticket as the pane draws it.
 export type PilotRow = PilotTicket & {

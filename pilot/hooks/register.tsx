@@ -15,7 +15,6 @@ import {
   deriveState,
   elapsed,
   listTickets,
-  parsePr,
   parseReview,
   planSummary,
   reviewLine,
@@ -40,7 +39,7 @@ const tickets = { plugin: 'pilot', key: 'tickets' } as const
 const shown = { plugin: 'pilot', key: 'shown' } as const
 const main = { plugin: 'pilot', key: 'main' } as const
 
-// Per branch: the last `gh` answer and when it was asked. A PR read MERGED or
+// Per branch: the last `gh` or `glab` answer and when it was asked. A PR read MERGED or
 // CLOSED is final: it is not asked again.
 const prs = new Map<string, { at: number; pr: Pr | undefined }>()
 let timer: { cancel: () => void } | undefined
@@ -50,7 +49,8 @@ async function prOf($: Engine, worktree: string, branch: string) {
   const known = prs.get(branch)
   const finished = known?.pr?.state === 'MERGED' || known?.pr?.state === 'CLOSED'
   if (known && (finished || now - known.at < PR_MS)) return known.pr
-  const pr = parsePr(await readPr($, worktree, branch))
+  const { result, parse } = await readPr($, worktree, branch)
+  const pr = parse(result)
   prs.set(branch, { at: now, pr })
 
   return pr
@@ -244,7 +244,9 @@ export const register: Register = on => {
                         </Text>
                       </Box>
                       <Box gap={1}>
-                        {row.pr && <Link href={row.pr.url}>PR</Link>}
+                        {row.pr && (
+                          <Link href={row.pr.url}>{row.pr.kind === 'mr' ? 'MR' : 'PR'}</Link>
+                        )}
                         {row.plan && (
                           <Button
                             key={`plan:${key}`}
@@ -291,7 +293,9 @@ function describe(row: PilotRow, now: number): string {
   const parts: string[] = []
   if (kind === 'shipped') {
     const pr = row.pr
-    if (pr?.number !== undefined) parts.push(`#${pr.number}`)
+    if (pr?.number !== undefined) {
+      parts.push(`${pr.kind === 'mr' ? '!' : '#'}${pr.number}`)
+    }
     const ci = CI[pr?.ci as keyof typeof CI]
     if (ci) parts.push(ci)
     if (pr?.state === 'OPEN' && pr.ci === 'passing') parts.push('prête à merger')
