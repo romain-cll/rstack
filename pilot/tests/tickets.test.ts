@@ -40,6 +40,17 @@ const porcelain = (paths: string[]) =>
     )
     .join('\n')
 
+// A worktree whose block holds a `detached` line instead of a `branch` line.
+const detachedPorcelain = (blocks: { path: string; detached?: boolean }[]) =>
+  blocks
+    .map(
+      ({ path, detached }, i) =>
+        `worktree ${path}\nHEAD ${String(i).repeat(40)}\n${
+          detached ? 'detached' : `branch refs/heads/wt-${i}`
+        }\n`,
+    )
+    .join('\n')
+
 const spec = (o: {
   title: string
   status: string
@@ -290,6 +301,44 @@ test('open-session AC1 — with self missing or unreadable, no session is marked
   }
 })
 
+test('hide-done AC1 — a detached worktree with no session yields no ticket, whatever specs it holds', () => {
+  const tickets = listTickets({
+    worktrees: detachedPorcelain([
+      { path: WT_A, detached: true },
+      { path: WT_B },
+      { path: WT_C, detached: true },
+    ]),
+    files: {
+      [WT_A]: { 'a.md': spec({ title: 'A', status: 'shipped' }) },
+      [WT_B]: { 'b.md': spec({ title: 'B', status: 'ready' }) },
+      [WT_C]: { 'c.md': spec({ title: 'C', status: 'draft' }) },
+    },
+    sessions: '[]',
+  })
+
+  expect(tickets.map(t => t.slug)).toEqual(['b'])
+})
+
+test('hide-done AC1 — a detached worktree with a matched session keeps its tickets', () => {
+  const tickets = listTickets({
+    worktrees: detachedPorcelain([
+      { path: WT_A, detached: true },
+      { path: WT_B, detached: true },
+    ]),
+    files: {
+      [WT_A]: { 'a.md': spec({ title: 'A', status: 'red' }) },
+      [WT_B]: { 'b.md': spec({ title: 'B', status: 'red' }) },
+    },
+    sessions: JSON.stringify([
+      session({ sessionId: 'sA', cwd: WT_A, isRunning: true }),
+    ]),
+  })
+
+  expect(tickets).toHaveLength(1)
+  expect(tickets[0]).toMatchObject({ worktree: WT_A, slug: 'a' })
+  expect(tickets[0]?.session?.sessionId).toBe('sA')
+})
+
 test('AC3 — a review history gives its rounds, last verdict, fixes and the cap', () => {
   const review = [
     '## Round 1 — KO — 2e88aea',
@@ -381,9 +430,13 @@ test('open-session AC3 — a question with no session id is ignored', () => {
 })
 
 test('AC4 — no session, whatever the status', () => {
-  for (const status of ['draft', 'ready', 'shipped', undefined]) {
+  for (const status of ['draft', 'ready', undefined]) {
     expect(deriveState(ticket(status), {}).kind).toBe('no-session')
   }
+})
+
+test('hide-done AC2 — a shipped ticket with no session is shipped, not no session', () => {
+  expect(deriveState(ticket('shipped'), {}).kind).toBe('shipped')
 })
 
 test('AC4 — shipped', () => {

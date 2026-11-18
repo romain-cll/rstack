@@ -27,6 +27,7 @@ const PROCESS_OK = {
 
 const OPEN_TOOL = 'mcp__ccd_window__open_session_in'
 const GET_SESSION = 'mcp__ccd_session_mgmt__get_session'
+const LIST_SESSIONS = 'mcp__ccd_session_mgmt__list_sessions'
 
 // What the engine and the world answer beneath the plugin.
 function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
@@ -66,10 +67,14 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
     seen.processes.push([...e.argv])
     if (e.argv[0] === 'git' && e.argv.includes('worktree')) seen.polls += 1
 
-    return { value: PROCESS_OK }
+    return { value: app.processAnswer(e.argv) }
   })
   // What the app answers to the Open button: a test sets `openAnswer`.
   const app = {
+    // What git and gh answer to a command, by its argv.
+    processAnswer: (_argv: string[]): any => PROCESS_OK,
+    // The JSON text `list_sessions` answers.
+    sessions: '[]',
     openAnswer: (): any => ({ result: {}, text: 'ok' }),
     askAnswer: async (): Promise<any> => ({ result: {} }),
     // What `get_session self` answers: the app's id of the calling session.
@@ -84,7 +89,7 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
     if (e.tool === 'AskUserQuestion') return app.askAnswer()
     if (e.tool === GET_SESSION) return app.selfAnswer()
 
-    return { result: {}, text: '[]' }
+    return { result: {}, text: e.tool === LIST_SESSIONS ? app.sessions : '[]' }
   })
 
   return { clock, seen, who, store, app }
@@ -332,3 +337,89 @@ test('AC8 — a ticket with no session calls nothing', async ($, on) => {
   expect(seen.processes.filter(argv => argv[0] === 'open')).toHaveLength(0)
   await ui.unmount()
 })
+
+// A poll over one worktree on a branch, whose features folder holds one
+// shipped spec: what `/pilot` writes to `pilot.tickets`, with `gh` answering
+// `gh`. Each case has its own branch: the pilot keeps a PR a minute per branch.
+async function pollShipped(
+  $: any,
+  on: any,
+  o: { branch: string; gh: { exitCode: number; stdout: string }; withSession?: boolean },
+) {
+  const WT = '/work/a'
+  const w = world(on)
+  const written: any[] = []
+  on('state.set', (_: any, e: any) => {
+    if (e.key === 'tickets') written.push(e.value)
+
+    return { value: { isSet: true, version: written.length } }
+  })
+  on('fs.exists', () => ({ value: true }))
+  on('fs.list', () => ({
+    value: [{ name: 'alpha.md', kind: 'file', size: 1, mtimeMs: 0, isLink: false }],
+  }))
+  on('fs.read', () => ({
+    value: `---\nstatus: shipped\nbranch: ${o.branch}\n---\n\n# Alpha feature\n`,
+  }))
+  w.app.processAnswer = argv =>
+    argv[0] === 'git'
+      ? {
+          ...PROCESS_OK,
+          stdout: `worktree ${WT}\nHEAD ${'0'.repeat(40)}\nbranch refs/heads/${o.branch}\n`,
+        }
+      : argv[0] === 'gh'
+        ? { ...PROCESS_OK, ...o.gh }
+        : PROCESS_OK
+  if (o.withSession) {
+    w.app.sessions = JSON.stringify([
+      {
+        sessionId: 'local_abc',
+        cwd: WT,
+        isArchived: false,
+        isRunning: false,
+        lastActivityAt: '2026-11-18T10:00:00.000Z',
+        link: 'claude://claude.ai/epitaxy/local_abc',
+      },
+    ])
+  }
+
+  await slash($, 'pilot')
+  await w.clock.settle()
+
+  return {
+    rows: written[written.length - 1] as any[] | undefined,
+    gh: w.seen.processes.filter(argv => argv[0] === 'gh'),
+  }
+}
+
+const ghPr = (state: string) => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    state,
+    url: 'https://github.com/o/r/pull/7',
+    statusCheckRollup: [],
+  }),
+})
+
+const SHIPPED_CASES = [
+  { name: 'MERGED, no session', pr: ghPr('MERGED'), withSession: false, kept: false },
+  { name: 'CLOSED, no session', pr: ghPr('CLOSED'), withSession: false, kept: false },
+  { name: 'MERGED, with a session', pr: ghPr('MERGED'), withSession: true, kept: false },
+  { name: 'OPEN, no session', pr: ghPr('OPEN'), withSession: false, kept: true },
+  { name: 'gh failing, no session', pr: { exitCode: 1, stdout: '' }, withSession: false, kept: true },
+] as const
+
+for (const [i, c] of SHIPPED_CASES.entries()) {
+  test(`hide-done AC3 — a shipped ticket with a branch, PR ${c.name}: its PR is read, and the row is ${c.kept ? 'kept' : 'left out'}`, async ($, on) => {
+    const branch = `feat/shipped-${i}`
+    const { rows, gh } = await pollShipped($, on, {
+      branch,
+      gh: c.pr,
+      withSession: c.withSession,
+    })
+
+    expect(gh.some(argv => argv.slice(0, 3).join(' ') === 'gh pr view' && argv[3] === branch)).toBe(true)
+    expect(rows).toBeDefined()
+    expect(rows!.filter(row => row.slug === 'alpha')).toHaveLength(c.kept ? 1 : 0)
+  })
+}
