@@ -200,7 +200,7 @@ export const register: Register = on => {
         {grouped
           .filter(section => section.count > 0)
           .map(section => (
-            <Box key={section.id} flexDirection="column">
+            <Box key={section.id} flexDirection="column" gap={1}>
               <Text bold color={section.id === 'toi' ? 'claude' : 'subtle'}>
                 {SECTION_TITLES[section.id]} ({section.count})
               </Text>
@@ -211,36 +211,38 @@ export const register: Register = on => {
                   session && !session.isPilot
                     ? () => void openSession($, session)
                     : undefined
-                const mark = section.id === 'toi' ? '┃ ' : '  '
-                // A row opens its session: a Button on each of its lines,
-                // plain text when there is no session to open.
-                const line = (name: string, ...children: (JSX.Element | false | undefined | '')[]) =>
-                  press ? (
-                    <Button key={`${key}:${name}`} plain onPress={press}>
-                      {children}
-                    </Button>
-                  ) : (
-                    <Text key={`${key}:${name}`}>{children}</Text>
-                  )
+                const mark = (
+                  <Text color="claude">{section.id === 'toi' ? '┃' : ' '}</Text>
+                )
 
                 return (
                   <Box key={key} flexDirection="column">
-                    {line(
-                      'title',
-                      <Text color="claude">{mark}</Text>,
-                      row.id && (
-                        <Text mono backgroundColor="subtle">{` ${row.id} `}</Text>
-                      ),
-                      <Text bold>{` ${row.name}`}</Text>,
-                    )}
-                    <Box justifyContent="space-between">
-                      {line(
-                        'state',
-                        <Text color="claude">{mark}</Text>,
-                        <Text dimColor>{describe(row, now)}</Text>,
-                        <Text color="suggestion">{`  ${'●'.repeat(row.step)}`}</Text>,
-                        <Text color="inactive">{'○'.repeat(5 - row.step)}</Text>,
+                    {/* Only the name is a Button: the desktop draws a Button's
+                        label as plain text and drops the style of every Text in it. */}
+                    <Box gap={1}>
+                      {mark}
+                      {row.id && (
+                        <Text mono color="inverseText" backgroundColor="text">
+                          {` ${row.id} `}
+                        </Text>
                       )}
+                      {press ? (
+                        <Button key={`${key}:name`} plain onPress={press}>
+                          {row.name}
+                        </Button>
+                      ) : (
+                        <Text bold>{row.name}</Text>
+                      )}
+                    </Box>
+                    <Box justifyContent="space-between">
+                      <Box gap={1}>
+                        {mark}
+                        <Text dimColor>{describe(row, now)}</Text>
+                        <Text>
+                          <Text color="suggestion">{'●'.repeat(row.step)}</Text>
+                          <Text color="inactive">{'○'.repeat(5 - row.step)}</Text>
+                        </Text>
+                      </Box>
                       <Box gap={1}>
                         {row.pr && <Link href={row.pr.url}>PR</Link>}
                         {row.plan && (
@@ -303,7 +305,7 @@ function describe(row: PilotRow, now: number): string {
   }
   if (row.since !== undefined) {
     const { n, unit } = elapsed(row.since, now)
-    parts.push(`depuis ${n} ${unit}`)
+    parts.push(`depuis ${n} ${unit === 'd' ? 'j' : unit}`)
   }
 
   return parts.join(' · ')
