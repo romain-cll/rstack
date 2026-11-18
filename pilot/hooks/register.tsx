@@ -13,10 +13,18 @@ import {
 import type { Pr } from './tickets'
 import {
   deriveState,
+  elapsed,
   listTickets,
   parsePr,
   parseReview,
+  planSummary,
+  reviewLine,
+  sectionOf,
+  sections,
   selfId,
+  stepOf,
+  ticketId,
+  waitingSince,
   worktreePaths,
 } from './tickets'
 
@@ -29,15 +37,19 @@ const POLL_MS = 10_000
 const PR_MS = 60_000
 
 const tickets = { plugin: 'pilot', key: 'tickets' } as const
+const shown = { plugin: 'pilot', key: 'shown' } as const
+const main = { plugin: 'pilot', key: 'main' } as const
 
-// Per branch: the last `gh` answer and when it was asked.
+// Per branch: the last `gh` answer and when it was asked. A PR read MERGED or
+// CLOSED is final: it is not asked again.
 const prs = new Map<string, { at: number; pr: Pr | undefined }>()
 let timer: { cancel: () => void } | undefined
 
 async function prOf($: Engine, worktree: string, branch: string) {
   const now = await $.clock.now()
   const known = prs.get(branch)
-  if (known && now - known.at < PR_MS) return known.pr
+  const finished = known?.pr?.state === 'MERGED' || known?.pr?.state === 'CLOSED'
+  if (known && (finished || now - known.at < PR_MS)) return known.pr
   const pr = parsePr(await readPr($, worktree, branch))
   prs.set(branch, { at: now, pr })
 
@@ -64,8 +76,25 @@ async function poll($: Engine) {
         ? await prOf($, ticket.worktree, ticket.branch)
         : undefined
     if (pr?.state === 'MERGED' || pr?.state === 'CLOSED') continue
-    rows.push({ ...ticket, state, review, pr })
+    const { id, name } = ticketId(
+      ticket.title,
+      ticket.slug ?? ticket.worktree.split('/').pop() ?? ticket.worktree,
+    )
+    const spec = files[ticket.worktree]?.[`${ticket.slug}.md`]
+    rows.push({
+      ...ticket,
+      id,
+      name,
+      section: sectionOf(state.kind),
+      step: stepOf(ticket.status),
+      since: waitingSince({ state, session: ticket.session }),
+      plan: spec === undefined ? undefined : planSummary(spec),
+      state,
+      review,
+      pr,
+    })
   }
+  await $.state.set(main, worktreePaths(porcelain)[0]?.split('/').pop() ?? '')
   await $.state.set(tickets, JSON.parse(JSON.stringify(rows)))
 }
 
@@ -143,43 +172,139 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button, Link } = $.ui.resolve(e)
+    const { Box, Text, Button, Link, Markdown } = $.ui.resolve(e)
     const { value: rows = [] } = await $.state.get(tickets)
-    const waiting = (row: PilotRow) => row.state.kind.startsWith('awaiting')
-    const ordered = [...rows.filter(waiting), ...rows.filter(row => !waiting(row))]
+    const open = (await $.state.get(shown)).value
+    const folder = (await $.state.get(main)).value
+    const now = await $.clock.now()
+    const grouped = sections(rows)
+    const count = (id: string) => grouped.find(g => g.id === id)?.count ?? 0
+
+    const togglePlan = async (key: string) => {
+      const current = (await $.state.get(shown)).value
+      await $.state.set(shown, current === key ? '' : key)
+    }
 
     return (
-      <Box flexDirection="column">
-        {ordered.length === 0 && <Text dimColor>No ticket.</Text>}
-        {ordered.map(row => (
-          <Box key={`${row.worktree}/${row.slug}`} flexDirection="column">
-            <Text bold>{row.title ?? row.worktree}</Text>
-            <Text dimColor>{describe(row)}</Text>
-            {row.state.question && <Text>{row.state.question}</Text>}
-            {row.pr && (
-              <Text>
-                <Link href={row.pr.url}>{`PR ${row.pr.state}`}</Link> CI {row.pr.ci}
+      <Box flexDirection="column" gap={1}>
+        <Box justifyContent="space-between">
+          <Text bold>
+            {typeof folder === 'string' ? folder.toUpperCase() : 'PILOT'} ·{' '}
+            {rows.length} {rows.length === 1 ? 'ticket' : 'tickets'}
+          </Text>
+          <Text dimColor>
+            À toi {count('toi')} · En cours {count('running')} · PR {count('pr')}
+          </Text>
+        </Box>
+        {rows.length === 0 && <Text dimColor>Aucun ticket.</Text>}
+        {grouped
+          .filter(section => section.count > 0)
+          .map(section => (
+            <Box key={section.id} flexDirection="column">
+              <Text bold color={section.id === 'toi' ? 'claude' : 'subtle'}>
+                {SECTION_TITLES[section.id]} ({section.count})
               </Text>
-            )}
-            {row.session && !row.session.isPilot && (
-              <Button
-                key={`open-${row.worktree}/${row.slug}`}
-                onPress={() => openSession($, row.session!)}
-              >
-                Open session
-              </Button>
-            )}
-          </Box>
-        ))}
+              {section.rows.map(row => {
+                const key = `${row.worktree}/${row.slug}`
+                const session = row.session
+                const press =
+                  session && !session.isPilot
+                    ? () => void openSession($, session)
+                    : undefined
+                const mark = section.id === 'toi' ? '┃ ' : '  '
+                // A row opens its session: a Button on each of its lines,
+                // plain text when there is no session to open.
+                const line = (name: string, ...children: (JSX.Element | false | undefined | '')[]) =>
+                  press ? (
+                    <Button key={`${key}:${name}`} plain onPress={press}>
+                      {children}
+                    </Button>
+                  ) : (
+                    <Text key={`${key}:${name}`}>{children}</Text>
+                  )
+
+                return (
+                  <Box key={key} flexDirection="column">
+                    {line(
+                      'title',
+                      <Text color="claude">{mark}</Text>,
+                      row.id && (
+                        <Text mono backgroundColor="subtle">{` ${row.id} `}</Text>
+                      ),
+                      <Text bold>{` ${row.name}`}</Text>,
+                    )}
+                    <Box justifyContent="space-between">
+                      {line(
+                        'state',
+                        <Text color="claude">{mark}</Text>,
+                        <Text dimColor>{describe(row, now)}</Text>,
+                        <Text color="suggestion">{`  ${'●'.repeat(row.step)}`}</Text>,
+                        <Text color="inactive">{'○'.repeat(5 - row.step)}</Text>,
+                      )}
+                      <Box gap={1}>
+                        {row.pr && <Link href={row.pr.url}>PR</Link>}
+                        {row.plan && (
+                          <Button
+                            key={`plan:${key}`}
+                            onPress={() => void togglePlan(key)}
+                          >
+                            {open === key ? 'Masquer le plan' : 'Voir le plan'}
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+                    {row.state.question && (
+                      <Text color="warning">{`  ${row.state.question}`}</Text>
+                    )}
+                    {open === key && row.plan && (
+                      <Markdown key={`md:${key}`} text={row.plan} />
+                    )}
+                  </Box>
+                )
+              })}
+            </Box>
+          ))}
       </Box>
     )
   })
 }
 
-function describe(row: PilotRow): string {
-  const { kind, status, rounds, verdict, fixes, cap } = row.state
-  if (kind === 'review') return `review: round ${rounds} ${verdict}, fix ${fixes}/${cap}`
-  if (kind === 'in-dev') return `in dev: ${status}`
+const SECTION_TITLES = { toi: 'À TOI', running: 'EN COURS', pr: 'PR' } as const
 
-  return kind.replaceAll('-', ' ')
+const LABELS: Record<string, string> = {
+  'awaiting-answer': 'Réponse attendue',
+  'awaiting-plan-validation': 'Plan à valider',
+  'no-session': 'Pas de session',
+  planning: 'Plan en cours',
+  'in-dev': 'En dev',
+  shipping: 'Ship en cours',
+  'no-spec': 'Pas de spec',
+}
+
+const CI = { passing: 'CI ✓', failing: 'CI ✗', pending: 'CI …' } as const
+
+// The dim line under a row's title, without the progress dots.
+function describe(row: PilotRow, now: number): string {
+  const { kind } = row.state
+  const parts: string[] = []
+  if (kind === 'shipped') {
+    const pr = row.pr
+    if (pr?.number !== undefined) parts.push(`#${pr.number}`)
+    const ci = CI[pr?.ci as keyof typeof CI]
+    if (ci) parts.push(ci)
+    if (pr?.state === 'OPEN' && pr.ci === 'passing') parts.push('prête à merger')
+    if (parts.length === 0) parts.push('PR')
+  } else if (kind === 'review' && row.review) {
+    const { rounds, cap, running } = reviewLine(row.review)
+    parts.push(`Review ${rounds}/${cap}`)
+    if (running) parts.push(`${running} en cours`)
+  } else {
+    parts.push(LABELS[kind] ?? kind)
+  }
+  if (row.since !== undefined) {
+    const { n, unit } = elapsed(row.since, now)
+    parts.push(`depuis ${n} ${unit}`)
+  }
+
+  return parts.join(' · ')
 }

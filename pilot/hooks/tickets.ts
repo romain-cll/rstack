@@ -98,6 +98,9 @@ function sessionOf(
         sessionId: String(found.sessionId),
         isRunning: found.isRunning === true,
         link: String(found.link),
+        ...(typeof found.lastActivityAt === 'string'
+          ? { lastActivityAt: found.lastActivityAt }
+          : {}),
         ...(selfSessionId !== undefined && String(found.sessionId) === selfSessionId
           ? { isPilot: true }
           : {}),
@@ -115,6 +118,8 @@ export function listTickets(input: {
   const own = selfId(input.self)
   const detached = detachedPaths(input.worktrees)
 
+  const [main] = worktreePaths(input.worktrees)
+
   return worktreePaths(input.worktrees).flatMap((worktree): Ticket[] => {
     const session = sessionOf(worktree, sessions, own)
     const pooled = !session && detached.has(worktree)
@@ -122,7 +127,10 @@ export function listTickets(input: {
     const specs = Object.keys(files)
       .filter(name => name.endsWith('.md') && !name.endsWith('.review.md'))
       .sort()
-    if (specs.length === 0) return session ? [{ worktree, session }] : []
+    if (specs.length === 0) {
+      // The main checkout's session is the user's own, not a ticket's.
+      return session && worktree !== main ? [{ worktree, session }] : []
+    }
 
     return specs.flatMap((name): Ticket[] => {
       const text = files[name] ?? ''
@@ -169,7 +177,7 @@ export function deriveState(
     .sort((a, b) => b.at - a.at)[0]
 
   if (asked && session?.isRunning) {
-    return { kind: 'awaiting-answer', question: asked.question }
+    return { kind: 'awaiting-answer', question: asked.question, at: asked.at }
   }
   if (status === 'shipped') return { kind: 'shipped' }
   if (!session) return { kind: 'no-session' }
@@ -209,8 +217,139 @@ export function parsePr(result: {
           ? 'passing'
           : 'none'
 
-    return { state: pr.state, url: String(pr.url), ci }
+    return {
+      state: pr.state,
+      url: String(pr.url),
+      ci,
+      ...(typeof pr.number === 'number' ? { number: pr.number } : {}),
+    }
   } catch {
     return undefined
   }
+}
+
+const TICKET_ID = /[A-Z][A-Z0-9]+-\d+/
+const DANGLING = /^[\s—–\-:·]+|[\s—–\-:·]+$/g
+
+// The ticket id a spec title holds, and the title without it, its brackets
+// and the separator it leaves dangling.
+export function ticketId(
+  title: string | undefined,
+  slug: string,
+): { id?: string; name: string } {
+  const id = title?.match(TICKET_ID)?.[0]
+  if (title === undefined || title === '') return { name: slug }
+  if (!id) return { name: title }
+  const name = title
+    .replace(id, ' ')
+    .replace(/\(\s*\)|\[\s*\]/g, ' ')
+    .replace(DANGLING, '')
+    .replace(/\s{2,}/g, ' ')
+
+  return { id, name: name || slug }
+}
+
+export type SectionId = 'toi' | 'running' | 'pr'
+
+const SECTION_OF: Record<string, SectionId> = {
+  'awaiting-answer': 'toi',
+  'awaiting-plan-validation': 'toi',
+  'no-session': 'toi',
+  shipped: 'pr',
+}
+
+export function sectionOf(kind: string): SectionId {
+  return SECTION_OF[kind] ?? 'running'
+}
+
+// The rows in sections, in the order they are drawn: what waits for the user,
+// longest first, then what runs, then the pull requests.
+export function sections<T extends { state: { kind: string }; since?: number }>(
+  rows: T[],
+): { id: SectionId; rows: T[]; count: number }[] {
+  const ids: SectionId[] = ['toi', 'running', 'pr']
+
+  return ids.map(id => {
+    const own = rows.filter(row => sectionOf(row.state.kind) === id)
+    if (id === 'toi') {
+      own.sort((a, b) => (a.since ?? Infinity) - (b.since ?? Infinity))
+    }
+
+    return { id, rows: own, count: own.length }
+  })
+}
+
+const STEPS: Record<string, number> = {
+  ready: 2,
+  red: 3,
+  green: 4,
+  reviewed: 5,
+  shipped: 5,
+}
+
+// Where a ticket stands in plan, red, green, review, ship.
+export function stepOf(status: string | undefined): number {
+  return (status && STEPS[status]) || 1
+}
+
+// When the user's turn started: the pending question's, else the stopped
+// session's last activity.
+export function waitingSince(row: {
+  state: State
+  session?: Partial<Ticket['session'] & object>
+}): number | undefined {
+  if (sectionOf(row.state.kind) !== 'toi') return undefined
+  if (row.state.at !== undefined) return row.state.at
+  const last = Date.parse(row.session?.lastActivityAt ?? '')
+
+  return Number.isNaN(last) ? undefined : last
+}
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+export function elapsed(
+  since: number,
+  now: number,
+): { n: number; unit: 'min' | 'h' | 'd' } {
+  const ms = Math.max(0, now - since)
+  if (ms >= DAY) return { n: Math.floor(ms / DAY), unit: 'd' }
+  if (ms >= HOUR) return { n: Math.floor(ms / HOUR), unit: 'h' }
+
+  return { n: Math.floor(ms / MINUTE), unit: 'min' }
+}
+
+// The review's rounds, its cap and what runs now: after a KO, the fix while
+// one is missing, then the next round.
+export function reviewLine(review: Review): {
+  rounds: number
+  cap: number
+  running?: 'fix' | 'round'
+} {
+  const { rounds, cap, verdict, fixes } = review
+  if (verdict !== 'KO') return { rounds, cap }
+
+  return { rounds, cap, running: fixes < rounds ? 'fix' : 'round' }
+}
+
+const PLAN_SECTIONS = ['User story', 'Acceptance criteria']
+
+// The user story then the acceptance criteria of a spec, headings included.
+export function planSummary(text: string): string | undefined {
+  const found: Record<string, string[]> = {}
+  let current: string[] | undefined
+  for (const line of text.split('\n')) {
+    if (line.startsWith('## ')) {
+      const name = line.slice(3).trim()
+      current = PLAN_SECTIONS.includes(name) ? (found[name] = [line]) : undefined
+    } else current?.push(line)
+  }
+  const parts = PLAN_SECTIONS.flatMap(name => {
+    const lines = found[name]
+
+    return lines ? [lines.join('\n').trim()] : []
+  })
+
+  return parts.length > 0 ? parts.join('\n\n') : undefined
 }

@@ -74,7 +74,7 @@ export async function readQuestions($: Engine): Promise<Question[]> {
 
 export function readPr($: Engine, worktree: string, branch: string) {
   return $.process
-    .run(['gh', 'pr', 'view', branch, '--json', 'state,url,statusCheckRollup'], {
+    .run(['gh', 'pr', 'view', branch, '--json', 'state,url,statusCheckRollup,number'], {
       cwd: worktree,
     })
     .catch(() => ({ exitCode: 1, stdout: '' }))

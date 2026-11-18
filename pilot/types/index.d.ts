@@ -2,6 +2,7 @@ export type PilotSession = {
   sessionId: string
   isRunning: boolean
   link: string
+  lastActivityAt?: string
   isPilot?: boolean
 }
 
@@ -33,6 +34,7 @@ export type PilotQuestion = {
 export type PilotState = {
   kind: string
   question?: string
+  at?: number
   status?: string
   rounds?: number
   verdict?: string
@@ -40,10 +42,16 @@ export type PilotState = {
   cap?: number
 }
 
-export type PilotPr = { state: string; url: string; ci: string }
+export type PilotPr = { state: string; url: string; ci: string; number?: number }
 
 // A ticket as the pane draws it.
 export type PilotRow = PilotTicket & {
+  id?: string
+  name: string
+  section: 'toi' | 'running' | 'pr'
+  step: number
+  since?: number
+  plan?: string
   state: PilotState
   review?: PilotReview
   pr?: PilotPr
@@ -51,6 +59,6 @@ export type PilotRow = PilotTicket & {
 
 declare module 'claude-code' {
   interface PluginState {
-    pilot: { tickets: PilotRow[] }
+    pilot: { tickets: PilotRow[]; shown?: string; main?: string }
   }
 }
