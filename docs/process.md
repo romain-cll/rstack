@@ -129,6 +129,8 @@ agents/            rs-tester, rs-dev, rs-reviewer (Claude Code format)
 hooks/             the reviewer's write guard, installed in ~/.claude/hooks/rstack/
 docs/
 install.sh, uninstall.sh
+pilot/             the pilot plugin (a pane of the tickets), installed from the marketplace
+.claude-plugin/    marketplace.json, declaring ./pilot
 ```
 
 ## Install
@@ -144,4 +146,4 @@ Everything is a copy, not a link: an edit, a branch switch or a deleted worktree
 
 ## Not now
 
-Bug fixing (`/rs-fix`), retrospectives, project setup, the state mod, hosts other than Claude Code, `/rs-build` as a deterministic workflow: each in its own time.
+Bug fixing (`/rs-fix`), retrospectives, project setup, hosts other than Claude Code, `/rs-build` as a deterministic workflow: each in its own time.

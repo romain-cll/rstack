@@ -1,0 +1,11 @@
+{
+  "name": "rstack",
+  "owner": { "name": "Romain C" },
+  "plugins": [
+    {
+      "name": "pilot",
+      "source": "./pilot",
+      "description": "A pane beside the pilot session showing where every rstack ticket stands."
+    }
+  ]
+}
