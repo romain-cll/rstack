@@ -30,12 +30,19 @@
 //   reviewLine({ rounds, verdict, fixes, cap }) -> { rounds, cap, running }
 //     running: 'fix' | 'round' | undefined
 //   planSummary(text) -> string | undefined
+//
+// pilot-gitlab adds:
+//   forgeOf(url | undefined) -> 'gitlab' | 'github'   (the `origin` URL)
+//   parseMr({ exitCode, stdout }) -> { state, url, ci, number, kind: 'mr' } | undefined
+//     (the result of `glab mr view <branch> -F json`)
 import { expect, test } from 'claude-code/testing'
 
 import {
   deriveState,
   elapsed,
+  forgeOf,
   listTickets,
+  parseMr,
   parsePr,
   parseReview,
   planSummary,
@@ -832,4 +839,76 @@ test('pilot-v2-ui AC7 — a spec missing one section gives the other, missing bo
   expect(onlyCriteria).not.toContain('PLAN-BODY')
 
   expect(planSummary('# T\n\n## Technical plan\nPLAN-BODY\n')).toBeUndefined()
+})
+
+// ---- pilot-gitlab ----
+
+test('pilot-gitlab AC1 — the https, scp-like and ssh origins of gitlab.com give gitlab', () => {
+  expect(forgeOf('https://gitlab.com/o/r.git')).toBe('gitlab')
+  expect(forgeOf('git@gitlab.com:o/r.git')).toBe('gitlab')
+  expect(forgeOf('ssh://git@gitlab.com/o/r.git')).toBe('gitlab')
+})
+
+test('pilot-gitlab AC1 — github.com, any other host, an unreadable URL or no origin give github', () => {
+  expect(forgeOf('https://github.com/o/r.git')).toBe('github')
+  expect(forgeOf('git@github.com:o/r.git')).toBe('github')
+  expect(forgeOf('https://gitlab.example.com/o/r.git')).toBe('github')
+  expect(forgeOf('not a url')).toBe('github')
+  expect(forgeOf('')).toBe('github')
+  expect(forgeOf(undefined)).toBe('github')
+})
+
+const mr = (extra: object = {}, pipeline?: string | null) => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    iid: 42,
+    state: 'opened',
+    web_url: 'https://gitlab.com/o/r/-/merge_requests/42',
+    ...(pipeline === null ? {} : { head_pipeline: { status: pipeline ?? 'success' } }),
+    ...extra,
+  }),
+})
+
+test('pilot-gitlab AC2 — the MR state, number and url, marked as a merge request', () => {
+  const cases: [string, string][] = [
+    ['opened', 'OPEN'],
+    ['locked', 'OPEN'],
+    ['merged', 'MERGED'],
+    ['closed', 'CLOSED'],
+  ]
+  for (const [state, expected] of cases) {
+    expect(parseMr(mr({ state }))).toMatchObject({
+      state: expected,
+      number: 42,
+      url: 'https://gitlab.com/o/r/-/merge_requests/42',
+      kind: 'mr',
+    })
+  }
+})
+
+test('pilot-gitlab AC2 — the pipeline status gives the CI summary', () => {
+  const ci = (status: string | null) => parseMr(mr({}, status))?.ci
+
+  expect(ci('success')).toBe('passing')
+  for (const status of ['failed', 'canceled']) expect(ci(status)).toBe('failing')
+  for (const status of [
+    'running',
+    'pending',
+    'created',
+    'preparing',
+    'waiting_for_resource',
+    'scheduled',
+  ]) {
+    expect(ci(status)).toBe('pending')
+  }
+  expect(ci('skipped')).toBe('none')
+  expect(ci('manual')).toBe('none')
+  expect(ci(null)).toBe('none')
+})
+
+test('pilot-gitlab AC2 — a non-zero exit, unparsable output or an unknown state gives no MR', () => {
+  expect(parseMr({ exitCode: 1, stdout: '' })).toBeUndefined()
+  expect(parseMr({ exitCode: 1, stdout: mr().stdout })).toBeUndefined()
+  expect(parseMr({ exitCode: 0, stdout: 'not json' })).toBeUndefined()
+  expect(parseMr(mr({ state: 'draft' }))).toBeUndefined()
 })
