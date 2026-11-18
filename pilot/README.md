@@ -1,6 +1,6 @@
 # pilot
 
-A pane beside the chat of your "pilot" session: one row per rstack ticket, the ones waiting for you first, each with an Open button that brings its session to the front.
+A pane beside the chat of your "pilot" session: one row per rstack ticket, the ones waiting for you first, each with an Open session button that brings its session to the front.
 
 ## Install
 
@@ -13,7 +13,7 @@ Then run `/pilot` in the session you want as the pilot. The pane opens, and open
 
 ## What it reads
 
-Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists, and the questions the ticket sessions publish. Every 60 seconds, `gh pr view <branch>` for a shipped ticket. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store.
+Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, `gh pr view <branch>` for a shipped ticket. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
 
 ## States
 
@@ -31,7 +31,7 @@ First match wins.
 | shipping | status `reviewed` |
 | no spec | a session in a worktree with no spec |
 
-Open focuses the session in the app; when the app refuses, it runs `open` on the session's `claude://` link.
+Open session focuses the ticket's session in the app (the pilot's own row has no button); when the app refuses, it runs `open` on the session's `claude://` link.
 
 ## Checks
 

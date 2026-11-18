@@ -62,7 +62,18 @@ function selfOf(json: string | undefined): Record<string, unknown>[] {
   }
 }
 
-function sessionOf(worktree: string, sessions: Record<string, unknown>[]) {
+// The app session id of a `get_session` answer, if it names one.
+export function selfId(json: string | undefined): string | undefined {
+  const id = selfOf(json)[0]?.sessionId
+
+  return typeof id === 'string' ? id : undefined
+}
+
+function sessionOf(
+  worktree: string,
+  sessions: Record<string, unknown>[],
+  selfSessionId?: string,
+) {
   const found = sessions
     .filter(s => s.cwd === worktree && s.isArchived !== true)
     .sort(
@@ -76,6 +87,9 @@ function sessionOf(worktree: string, sessions: Record<string, unknown>[]) {
         sessionId: String(found.sessionId),
         isRunning: found.isRunning === true,
         link: String(found.link),
+        ...(selfSessionId !== undefined && String(found.sessionId) === selfSessionId
+          ? { isPilot: true }
+          : {}),
       }
     : undefined
 }
@@ -87,9 +101,10 @@ export function listTickets(input: {
   self?: string
 }): Ticket[] {
   const sessions = [...sessionsOf(input.sessions), ...selfOf(input.self)]
+  const own = selfId(input.self)
 
   return worktreePaths(input.worktrees).flatMap((worktree): Ticket[] => {
-    const session = sessionOf(worktree, sessions)
+    const session = sessionOf(worktree, sessions, own)
     const files = input.files[worktree] ?? {}
     const specs = Object.keys(files)
       .filter(name => name.endsWith('.md') && !name.endsWith('.review.md'))
@@ -135,7 +150,7 @@ export function deriveState(
 ): State {
   const { status, session } = ticket
   const asked = (context.questions ?? [])
-    .filter(q => q.cwd === ticket.worktree)
+    .filter(q => q.sessionId !== undefined && q.sessionId === session?.sessionId)
     .sort((a, b) => b.at - a.at)[0]
 
   if (asked && session?.isRunning) {
