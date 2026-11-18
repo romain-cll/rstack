@@ -37,32 +37,3 @@ canonical_path() {
   dir=$(realpath "$dir" 2>/dev/null) || return 1
   printf '%s%s\n' "${dir%/}" "$tail"
 }
-
-# True if the (absolute) path touches tests: test files, test support (setup, mocks,
-# fixtures, helpers), runner config, guards that run the tests.
-# Case-insensitive: macOS volumes are, FOO.SPEC.TS is foo.spec.ts.
-is_test_path() {
-  local path
-  path=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
-  case "$path" in
-    # Test files
-    */test/*|*/tests/*|*/__tests__/*|*.test.*|*.spec.*|*-spec.*|*_test.go|*/test_*.py|*_test.py|*.snap) return 0 ;;
-    # Support: setup, helpers, mocks, fixtures
-    */__mocks__/*|*/__fixtures__/*|*/__snapshots__/*|*/fixtures/*|*/testing/*|*/test-utils*|*/testutils*|*/setuptests.*|*/conftest.py) return 0 ;;
-    # Runner config
-    */jest.*|*/jest-*|*/vitest.*|*/playwright.config.*|*/cypress.config.*|*/cypress/*|*/e2e/*|*/pytest.ini|*/tsconfig.spec.json|*/tsconfig.test.json) return 0 ;;
-    # Guards that run the tests
-    */.husky/*|*/.gitlab-ci.yml|*/.github/workflows/*) return 0 ;;
-  esac
-  return 1
-}
-
-# jq filter: the test part of a package.json (jest/vitest config, test scripts,
-# test dependencies). package.json mixes dependencies and test config: only this part
-# is compared before and after, the rest of the file stays editable.
-PKG_TEST_SECTIONS='{
-  jest, vitest,
-  scripts: (.scripts // {} | with_entries(select(.key | test("test|spec|e2e|cov|jest|vitest"; "i")))),
-  deps: ([.dependencies, .devDependencies] | map(. // {}) | add
-    | with_entries(select(.key | test("jest|vitest|testing-library|supertest|playwright|cypress|msw"; "i"))))
-}'

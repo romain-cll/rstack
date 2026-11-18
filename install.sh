@@ -67,7 +67,7 @@ done < "$MANIFEST"
 mv "$MANIFEST.new" "$MANIFEST"
 
 command -v jq >/dev/null 2>&1 || {
-  echo "warning: jq not found — the agents' guards block everything without it (brew install jq)" >&2
+  echo "warning: jq not found — the reviewer's write guard blocks everything without it (brew install jq)" >&2
   status=1
 }
 

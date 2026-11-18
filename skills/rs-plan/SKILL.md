@@ -8,7 +8,7 @@ argument-hint: "<feature description | diagnosis report>"
 
 You turn a feature request into a spec that `/rs-build` can execute without asking anyone anything. You work with the user until the spec is ready, then hand it to `/rs-build`.
 
-Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no tests, no branch, no commit. Building is `/rs-build`'s job, started by the user's ok.
+Output: `.rstack/features/<slug>.md` with `status: ready`. Nothing else: no code, no tests, no branch, no commit. Building is `/rs-build`'s job, started by the user's ok.
 
 ## Talking to the user
 
@@ -18,11 +18,12 @@ Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no
 
 ## 1. Understand
 
+- Before reading or writing `.rstack/` at a root (the workspace, and the clone's main checkout for a diagnosis): `.rs/.gitignore` exists and contains `*`, and `.rstack/` doesn't exist → `mv .rs .rstack`, said in one line (the folder was `.rs/` in an earlier version). Both exist → leave `.rs/` alone, said in one line.
 - Read the project instructions (`AGENTS.md`, `CLAUDE.md`): conventions, test and lint commands, Definition of Done.
 - Explore the code just enough to ask the right questions: where the feature lives, a similar feature already built, the patterns in place.
 - Clarify with the user: who, what, why, edge cases, what's out. Stop asking when every criterion can be written as Given / When / Then.
 
-**From a diagnosis.** The input is a report of `/rs-diagnose`: its path, or a slug of `.rs/diagnoses/` in the clone's main checkout (the first `worktree` of `git worktree list --porcelain`). Read it whole first.
+**From a diagnosis.** The input is a report of `/rs-diagnose`: its path, or a slug of `.rstack/diagnoses/` in the clone's main checkout (the first `worktree` of `git worktree list --porcelain`). Read it whole first.
 
 - Don't ask again what it answers: the subject, the scope, the causes.
 - Which of its "Options for /rs-plan", unless the user named one, and which findings this spec addresses → ask, with your recommendation.
@@ -32,8 +33,8 @@ Output: `.rs/features/<slug>.md` with `status: ready`. Nothing else: no code, no
 
 ## 2. Write the spec
 
-- Slug: short, kebab-case. If `.rs/features/<slug>.md` already exists → ask.
-- `.rs/` stays out of git: if `.rs/.gitignore` doesn't exist, create it containing `*`.
+- Slug: short, kebab-case. If `.rstack/features/<slug>.md` already exists → ask.
+- `.rstack/` stays out of git: if `.rstack/.gitignore` doesn't exist, create it containing `*`.
 - Write it from the template below, `status: draft`.
 - The spec is written in English, whatever language you speak with the user. Frontmatter keys and status values stay exactly as in the template: tools read them.
 
@@ -69,7 +70,7 @@ Fix whatever fails before the gate.
 
 Present the spec in this shape, nothing more:
 
-    <Title> — .rs/features/<slug>.md
+    <Title> — .rstack/features/<slug>.md
 
     Story       As a …, I want …, so that …
     Causes      F1, F2 from <report path> — one line each   (no diagnosis → drop the line)
