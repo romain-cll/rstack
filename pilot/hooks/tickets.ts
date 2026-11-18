@@ -228,6 +228,59 @@ export function parsePr(result: {
   }
 }
 
+export type Forge = 'gitlab' | 'github'
+
+const ORIGIN_HOST = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/]*@)?([^/:]+)[:/]/i
+
+// The forge of an `origin` URL: gitlab.com is gitlab, anything else github.
+export function forgeOf(url: string | undefined): Forge {
+  return url?.trim().match(ORIGIN_HOST)?.[1]?.toLowerCase() === 'gitlab.com'
+    ? 'gitlab'
+    : 'github'
+}
+
+const MR_STATES: Record<string, string> = {
+  opened: 'OPEN',
+  locked: 'OPEN',
+  merged: 'MERGED',
+  closed: 'CLOSED',
+}
+
+const MR_CI: Record<string, string> = {
+  success: 'passing',
+  failed: 'failing',
+  canceled: 'failing',
+  running: 'pending',
+  pending: 'pending',
+  created: 'pending',
+  preparing: 'pending',
+  waiting_for_resource: 'pending',
+  scheduled: 'pending',
+}
+
+// The result of `glab mr view <branch> -F json`.
+export function parseMr(result: {
+  exitCode: number
+  stdout: string
+}): Pr | undefined {
+  if (result.exitCode !== 0) return undefined
+  try {
+    const mr = JSON.parse(result.stdout)
+    const state = MR_STATES[mr.state]
+    if (!state) return undefined
+
+    return {
+      state,
+      url: String(mr.web_url),
+      ci: MR_CI[mr.head_pipeline?.status] ?? 'none',
+      ...(typeof mr.iid === 'number' ? { number: mr.iid } : {}),
+      kind: 'mr',
+    }
+  } catch {
+    return undefined
+  }
+}
+
 const TICKET_ID = /[A-Z][A-Z0-9]+-\d+/
 const DANGLING = /^[\s—–\-:·]+|[\s—–\-:·]+$/g
 

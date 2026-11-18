@@ -51,6 +51,8 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
     polls: 0,
     tools: [] as any[],
     processes: [] as string[][],
+    // The cwd of each process, same order as `processes`.
+    cwds: [] as (string | undefined)[],
   }
   on('session.id', () => ({ value: who.id }))
   on('session.cwd', () => ({ value: who.cwd }))
@@ -65,6 +67,7 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
   on('ui.close', () => ({ value: undefined }))
   on('process.run', (_: any, e: any) => {
     seen.processes.push([...e.argv])
+    seen.cwds.push(e.init?.cwd)
     if (e.argv[0] === 'git' && e.argv.includes('worktree')) seen.polls += 1
 
     return { value: app.processAnswer(e.argv) }
@@ -356,7 +359,15 @@ test('AC9 — pressing a ticket with no session calls nothing', async ($, on) =>
 async function pollShipped(
   $: any,
   on: any,
-  o: { branch: string; gh: { exitCode: number; stdout: string }; withSession?: boolean },
+  o: {
+    branch: string
+    gh?: { exitCode: number; stdout: string }
+    // pilot-gitlab: the `origin` URL `git remote get-url origin` answers, and
+    // what `glab` answers. Without `origin`, git answers the worktree list.
+    origin?: string
+    glab?: { exitCode: number; stdout: string }
+    withSession?: boolean
+  },
 ) {
   const WT = '/work/a'
   const w = world(on)
@@ -374,14 +385,18 @@ async function pollShipped(
     value: `---\nstatus: shipped\nbranch: ${o.branch}\n---\n\n# Alpha feature\n`,
   }))
   w.app.processAnswer = argv =>
-    argv[0] === 'git'
+    o.origin !== undefined && argv[0] === 'git' && argv.includes('remote')
+      ? { ...PROCESS_OK, stdout: `${o.origin}\n` }
+      : argv[0] === 'git'
       ? {
           ...PROCESS_OK,
           stdout: `worktree ${WT}\nHEAD ${'0'.repeat(40)}\nbranch refs/heads/${o.branch}\n`,
         }
       : argv[0] === 'gh'
         ? { ...PROCESS_OK, ...o.gh }
-        : PROCESS_OK
+        : argv[0] === 'glab'
+          ? { ...PROCESS_OK, ...o.glab }
+          : PROCESS_OK
   if (o.withSession) {
     w.app.sessions = JSON.stringify([
       {
@@ -401,7 +416,14 @@ async function pollShipped(
   return {
     rows: written[written.length - 1] as any[] | undefined,
     gh: w.seen.processes.filter(argv => argv[0] === 'gh'),
+    glab: w.seen.processes.filter(argv => argv[0] === 'glab'),
     clock: w.clock,
+    glabCwds: () =>
+      w.seen.processes.flatMap((argv, i) => (argv[0] === 'glab' ? [w.seen.cwds[i]] : [])),
+    glabCalls: () =>
+      w.seen.processes.filter(
+        argv => argv[0] === 'glab' && argv[1] === 'mr' && argv[3] === o.branch,
+      ).length,
     ghCalls: () =>
       w.seen.processes.filter(
         argv => argv[0] === 'gh' && argv[1] === 'pr' && argv[3] === o.branch,
@@ -465,3 +487,78 @@ for (const [i, c] of LATER_CASES.entries()) {
     else expect(ghCalls()).toBe(1)
   })
 }
+
+// pilot-gitlab AC3: the tool is picked by the host of the worktree's `origin`.
+const GITLAB = 'https://gitlab.com/o/r.git'
+const glabMr = (state: string) => ({
+  exitCode: 0,
+  stdout: JSON.stringify({
+    iid: 42,
+    state,
+    web_url: 'https://gitlab.com/o/r/-/merge_requests/42',
+    head_pipeline: { status: 'success' },
+  }),
+})
+
+const GITLAB_CASES = [
+  { name: 'merged', mr: glabMr('merged'), kept: false },
+  { name: 'closed', mr: glabMr('closed'), kept: false },
+  { name: 'opened', mr: glabMr('opened'), kept: true },
+] as const
+
+for (const [i, c] of GITLAB_CASES.entries()) {
+  test(`pilot-gitlab AC3 — a shipped ticket on gitlab.com: \`glab mr view\` is run and not \`gh\`, an MR ${c.name} ${c.kept ? 'keeps' : 'leaves out'} the row`, async ($, on) => {
+    const branch = `feat/gitlab-${i}`
+    const { rows, gh, glab, glabCwds } = await pollShipped($, on, {
+      branch,
+      origin: GITLAB,
+      glab: c.mr,
+    })
+
+    expect(glab).toContainEqual(['glab', 'mr', 'view', branch, '-F', 'json'])
+    expect(glabCwds()).toEqual(glab.map(() => '/work/a'))
+    expect(gh).toHaveLength(0)
+    expect(rows).toBeDefined()
+    expect(rows!.filter(row => row.slug === 'alpha')).toHaveLength(c.kept ? 1 : 0)
+  })
+}
+
+test('pilot-gitlab AC3 — a merged MR is not read again when the pilot polls past 60 s', async ($, on) => {
+  const { clock, glabCalls } = await pollShipped($, on, {
+    branch: 'feat/gitlab-later-merged',
+    origin: GITLAB,
+    glab: glabMr('merged'),
+  })
+  expect(glabCalls()).toBe(1)
+
+  await clock.advance(130_000)
+  await clock.settle()
+
+  expect(glabCalls()).toBe(1)
+})
+
+test('pilot-gitlab AC3 — an opened MR keeps its row and is read again past 60 s', async ($, on) => {
+  const { clock, glabCalls } = await pollShipped($, on, {
+    branch: 'feat/gitlab-later-open',
+    origin: GITLAB,
+    glab: glabMr('opened'),
+  })
+  expect(glabCalls()).toBe(1)
+
+  await clock.advance(130_000)
+  await clock.settle()
+
+  expect(glabCalls()).toBeGreaterThan(1)
+})
+
+test('pilot-gitlab AC3 — a shipped ticket on github.com still runs `gh pr view`, not `glab`', async ($, on) => {
+  const branch = 'feat/github-origin'
+  const { gh, glab } = await pollShipped($, on, {
+    branch,
+    origin: 'https://github.com/o/r.git',
+    gh: ghPr('OPEN'),
+  })
+
+  expect(gh.some(argv => argv.slice(0, 3).join(' ') === 'gh pr view' && argv[3] === branch)).toBe(true)
+  expect(glab).toHaveLength(0)
+})

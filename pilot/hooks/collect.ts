@@ -1,8 +1,9 @@
 // The reads of the pilot: git, the features folders, the app's sessions, the
-// questions the sessions publish, gh. Their parsing is in tickets.ts.
+// questions the sessions publish, gh or glab. Their parsing is in tickets.ts.
 import type { EngineInterface } from 'claude-code'
 
-import type { Question } from './tickets'
+import { forgeOf, parseMr, parsePr } from './tickets'
+import type { Pr, Question } from './tickets'
 
 type Engine = EngineInterface
 
@@ -72,10 +73,26 @@ export async function readQuestions($: Engine): Promise<Question[]> {
   return questions
 }
 
-export function readPr($: Engine, worktree: string, branch: string) {
-  return $.process
-    .run(['gh', 'pr', 'view', branch, '--json', 'state,url,statusCheckRollup,number'], {
-      cwd: worktree,
-    })
-    .catch(() => ({ exitCode: 1, stdout: '' }))
+const FAILED_READ = { exitCode: 1, stdout: '' }
+
+// The pull request or merge request of a branch, read with the tool of the
+// forge the worktree's `origin` is on, and the parser of its answer.
+export async function readPr(
+  $: Engine,
+  worktree: string,
+  branch: string,
+): Promise<{
+  result: { exitCode: number; stdout: string }
+  parse: (result: { exitCode: number; stdout: string }) => Pr | undefined
+}> {
+  const origin = await $.process
+    .run(['git', 'remote', 'get-url', 'origin'], { cwd: worktree })
+    .catch(() => FAILED_READ)
+  const gitlab = origin.exitCode === 0 && forgeOf(origin.stdout) === 'gitlab'
+  const argv = gitlab
+    ? ['glab', 'mr', 'view', branch, '-F', 'json']
+    : ['gh', 'pr', 'view', branch, '--json', 'state,url,statusCheckRollup,number']
+  const result = await $.process.run(argv, { cwd: worktree }).catch(() => FAILED_READ)
+
+  return { result, parse: gitlab ? parseMr : parsePr }
 }

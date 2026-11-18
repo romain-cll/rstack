@@ -13,7 +13,7 @@ Then run `/pilot` in the session you want as the pilot. The pane opens, and open
 
 ## What it reads
 
-Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, `gh pr view <branch>` for a shipped ticket with a branch. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
+Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, for a shipped ticket with a branch, the pull request or merge request: `glab mr view <branch> -F json` when the worktree's `origin` is on gitlab.com, `gh pr view <branch>` otherwise. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
 
 ## States
 
@@ -50,7 +50,7 @@ There is no control to validate a plan or answer a question from the pane: the a
 ## What the pane hides
 
 - The specs of a worktree whose HEAD is detached with no session matched to it: the app keeps an archived session's worktree in a reuse pool that way, `.rstack/` specs included. Its shipped specs with a branch stay for the rule below to decide from their pull request. With a session matched (a rebase in progress, for example), its tickets are listed.
-- A shipped ticket with a branch whose pull request is `MERGED` or `CLOSED`, with or without a session. A pull request `OPEN`, or `gh` failing, keeps it. A `MERGED` or `CLOSED` answer is kept until the pane reloads: `gh` is not asked again for that branch. An `OPEN` or failed one is asked again after 60 seconds.
+- A shipped ticket with a branch whose pull request (or GitLab merge request) is `MERGED` or `CLOSED`, with or without a session. A pull request `OPEN`, or `gh` or `glab` failing, keeps it. A `MERGED` or `CLOSED` answer is kept until the pane reloads: it is not asked again for that branch. An `OPEN` or failed one is asked again after 60 seconds.
 - The main checkout's session when it has no spec: it is the pilot's own place, not a ticket.
 
 ## Checks
