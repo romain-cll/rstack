@@ -13,6 +13,10 @@ Skills, agents and guardrails to build features with several coding agents on th
 
 Process and install: [docs/process.md](docs/process.md).
 
+## Pilot pane
+
+The `pilot` plugin adds a pane beside the chat of one session, the pilot, that shows where every ticket stands and which one waits for you, with a button to open its session. Install it from this repository's marketplace and run `/pilot`: see [pilot/README.md](pilot/README.md).
+
 ## What a project provides
 
 rstack installs once per machine; a project provides its own instructions (`AGENTS.md` / `CLAUDE.md`): the test, lint and typecheck commands, and the Definition of Done. The agents use the session's tools, whatever the stack, and the reviewer runs the checks itself, check-only, from those instructions, else from the project's manifest or scripts (`package.json`, `Makefile`, `Cargo.toml`, `pyproject.toml`…). A check it can't run is a blocking item.
