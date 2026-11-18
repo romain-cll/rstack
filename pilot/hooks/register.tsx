@@ -223,7 +223,9 @@ export const register: Register = on => {
           {row.name}
         </Button>
       ) : (
-        <Text weight="medium">{row.name}</Text>
+        <Text weight="medium" wrap="truncate-end">
+          {row.name}
+        </Text>
       )
     }
     const idOf = (row: PilotRow) =>
@@ -236,7 +238,7 @@ export const register: Register = on => {
     const card = (key: string, edge: string, lines: unknown) => (
       <Box key={key} borderStyle="single" borderColor="inactive">
         <Box width={1} backgroundColor={edge} />
-        <Box flexDirection="column" flexGrow={1} paddingX={1}>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0} paddingX={1}>
           {lines as never}
         </Box>
       </Box>
@@ -246,6 +248,7 @@ export const register: Register = on => {
         key={label}
         flexDirection="column"
         flexGrow={1}
+        minWidth={12}
         paddingX={1}
         borderStyle="single"
         borderColor={color ?? 'inactive'}
@@ -258,11 +261,23 @@ export const register: Register = on => {
         </Text>
       </Box>
     )
+    // A line of a row: the left part gives way to the right one, clipped when
+    // the pane is too narrow for both, so the right part stays in view.
+    const line = (left: unknown[], right: unknown[]) => (
+      <Box justifyContent="space-between" gap={1}>
+        <Box gap={1} flexShrink={1} minWidth={0} overflow="hidden">
+          {left.filter(Boolean) as never}
+        </Box>
+        <Box gap={1} flexShrink={0}>
+          {right.filter(Boolean) as never}
+        </Box>
+      </Box>
+    )
     let hotkey = 0
 
     return (
       <Box flexDirection="column" gap={1}>
-        <Box justifyContent="space-between">
+        <Box justifyContent="space-between" flexWrap="wrap" gap={1}>
           <Box gap={1}>
             <Text weight="semibold">Pilot</Text>
             {typeof folder === 'string' && <Text dimColor>{folder}</Text>}
@@ -278,7 +293,7 @@ export const register: Register = on => {
             </Button>
           </Box>
         </Box>
-        <Box gap={1}>
+        <Box gap={1} flexWrap="wrap">
           {tile(count.toi, "t'attendent", 'warning')}
           {tile(count.dev, 'en dev')}
           {tile(count.review, 'en review')}
@@ -311,24 +326,22 @@ export const register: Register = on => {
                             {'─'.repeat(Math.max(0, e.props.bodyColumns - 4))}
                           </Text>
                         )}
-                        <Box justifyContent="space-between">
-                          <Box gap={1}>
-                            {pr?.number !== undefined && (
+                        {line(
+                          [
+                            pr?.number !== undefined && (
                               <Text mono dimColor>
                                 {`${pr.kind === 'mr' ? '!' : '#'}${pr.number}`}
                               </Text>
-                            )}
-                            {nameOf(row, key)}
-                          </Box>
-                          <Box gap={1}>
-                            {ci && (
-                              <Text color={ci.color}>{`${ci.icon} CI`}</Text>
-                            )}
-                            {pr && (
+                            ),
+                            nameOf(row, key),
+                          ],
+                          [
+                            ci && <Text color={ci.color}>{`${ci.icon} CI`}</Text>,
+                            pr && (
                               <Link href={pr.url}>{pr.kind === 'mr' ? 'MR' : 'PR'}</Link>
-                            )}
-                          </Box>
-                        </Box>
+                            ),
+                          ],
+                        )}
                       </Box>
                     )
                   })}
@@ -348,13 +361,13 @@ export const register: Register = on => {
                       key,
                       'warning',
                       <>
-                        <Box gap={1}>
+                        <Box gap={1} minWidth={0} overflow="hidden">
                           <Text color="warning">{plan ? '☑' : '?'}</Text>
                           {idOf(row)}
                           {nameOf(row, key)}
                         </Box>
                         <Text dimColor>{toiLine(row)}</Text>
-                        <Box justifyContent="space-between">
+                        <Box justifyContent="space-between" flexWrap="wrap" gap={1}>
                           <Text size="caption" dimColor>
                             {since
                               ? `depuis ${since.n} ${since.unit === 'd' ? 'j' : since.unit}`
@@ -381,13 +394,10 @@ export const register: Register = on => {
                     key,
                     color,
                     <>
-                      <Box justifyContent="space-between">
-                        <Box gap={1}>
-                          {idOf(row)}
-                          {nameOf(row, key)}
-                        </Box>
-                        <Text color={color}>{runningStatus(row)}</Text>
-                      </Box>
+                      {line(
+                        [idOf(row), nameOf(row, key)],
+                        [<Text color={color}>{runningStatus(row)}</Text>],
+                      )}
                       <Box gap={1}>
                         {segments(row.step).map(segment => (
                           <Box
