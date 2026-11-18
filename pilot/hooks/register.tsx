@@ -112,7 +112,8 @@ export const register: Register = on => {
     return { text: 'Pilot pane opened.' }
   })
 
-  on('tool.call', { tool: 'AskUserQuestion' }, async ($, e, next) => {
+  on('tool.call', async ($, e, next) => {
+    if (e.tool !== 'AskUserQuestion') return next(e)
     const key = `${QUESTION_PREFIX}${await $.session.id()}`
     await $.store
       .set(key, {
