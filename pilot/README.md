@@ -13,7 +13,7 @@ Then run `/pilot` in the session you want as the pilot. The pane opens, and open
 
 ## What it reads
 
-Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, `gh pr view <branch>` for a shipped ticket. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
+Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, `gh pr view <branch>` for a shipped ticket with a branch. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
 
 ## States
 
@@ -22,14 +22,19 @@ First match wins.
 | State | Meaning |
 |---|---|
 | awaiting answer | the session asks a question (shown), or its build or ship stopped |
+| shipped | status `shipped`, with or without a session: pull request state and CI |
 | no session | no session of the app runs in the ticket's worktree |
-| shipped | pull request state and CI |
 | awaiting plan validation | a draft, session stopped |
 | planning | a draft, session running |
 | review | green, with the review's round, verdict, fixes and cap (3) |
 | in dev | status `ready`, `red` or `green` |
 | shipping | status `reviewed` |
 | no spec | a session in a worktree with no spec |
+
+## What the pane hides
+
+- The specs of a worktree whose HEAD is detached with no session matched to it: the app keeps an archived session's worktree in a reuse pool that way, `.rstack/` specs included. Its shipped specs with a branch stay for the rule below to decide from their pull request. With a session matched (a rebase in progress, for example), its tickets are listed.
+- A shipped ticket with a branch whose pull request is `MERGED` or `CLOSED`, with or without a session. A pull request `OPEN`, or `gh` failing, keeps it.
 
 Open session focuses the ticket's session in the app (the pilot's own row has no button); when the app refuses, it runs `open` on the session's `claude://` link.
 

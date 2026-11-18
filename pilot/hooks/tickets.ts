@@ -19,6 +19,17 @@ export function worktreePaths(porcelain: string): string[] {
     .map(line => line.slice('worktree '.length))
 }
 
+// The worktrees HEAD is detached in: the app keeps an archived session's
+// worktree in a reuse pool that way.
+function detachedPaths(porcelain: string): Set<string> {
+  return new Set(
+    porcelain
+      .split(/\n\s*\n/)
+      .filter(block => block.split('\n').includes('detached'))
+      .flatMap(worktreePaths),
+  )
+}
+
 function frontmatter(text: string): Record<string, string> {
   const lines = text.split('\n')
   const fields: Record<string, string> = {}
@@ -102,20 +113,24 @@ export function listTickets(input: {
 }): Ticket[] {
   const sessions = [...sessionsOf(input.sessions), ...selfOf(input.self)]
   const own = selfId(input.self)
+  const detached = detachedPaths(input.worktrees)
 
   return worktreePaths(input.worktrees).flatMap((worktree): Ticket[] => {
     const session = sessionOf(worktree, sessions, own)
+    const pooled = !session && detached.has(worktree)
     const files = input.files[worktree] ?? {}
     const specs = Object.keys(files)
       .filter(name => name.endsWith('.md') && !name.endsWith('.review.md'))
       .sort()
     if (specs.length === 0) return session ? [{ worktree, session }] : []
 
-    return specs.map(name => {
+    return specs.flatMap((name): Ticket[] => {
       const text = files[name] ?? ''
       const meta = frontmatter(text)
+      // A pool worktree keeps its shipped specs with a branch: the PR decides.
+      if (pooled && !(meta.status === 'shipped' && meta.branch)) return []
 
-      return {
+      return [{
         worktree,
         slug: name.slice(0, -'.md'.length),
         title: title(text),
@@ -123,7 +138,7 @@ export function listTickets(input: {
         branch: meta.branch,
         red: meta.red,
         session,
-      }
+      }]
     })
   })
 }
@@ -156,8 +171,8 @@ export function deriveState(
   if (asked && session?.isRunning) {
     return { kind: 'awaiting-answer', question: asked.question }
   }
-  if (!session) return { kind: 'no-session' }
   if (status === 'shipped') return { kind: 'shipped' }
+  if (!session) return { kind: 'no-session' }
   if (status === 'draft' && !session.isRunning) {
     return { kind: 'awaiting-plan-validation' }
   }

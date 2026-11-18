@@ -63,6 +63,7 @@ async function poll($: Engine) {
       state.kind === 'shipped' && ticket.branch
         ? await prOf($, ticket.worktree, ticket.branch)
         : undefined
+    if (pr?.state === 'MERGED' || pr?.state === 'CLOSED') continue
     rows.push({ ...ticket, state, review, pr })
   }
   await $.state.set(tickets, JSON.parse(JSON.stringify(rows)))
