@@ -117,18 +117,20 @@ export function listTickets(input: {
 
   return worktreePaths(input.worktrees).flatMap((worktree): Ticket[] => {
     const session = sessionOf(worktree, sessions, own)
-    if (!session && detached.has(worktree)) return []
+    const pooled = !session && detached.has(worktree)
     const files = input.files[worktree] ?? {}
     const specs = Object.keys(files)
       .filter(name => name.endsWith('.md') && !name.endsWith('.review.md'))
       .sort()
     if (specs.length === 0) return session ? [{ worktree, session }] : []
 
-    return specs.map(name => {
+    return specs.flatMap((name): Ticket[] => {
       const text = files[name] ?? ''
       const meta = frontmatter(text)
+      // A pool worktree keeps its shipped specs with a branch: the PR decides.
+      if (pooled && !(meta.status === 'shipped' && meta.branch)) return []
 
-      return {
+      return [{
         worktree,
         slug: name.slice(0, -'.md'.length),
         title: title(text),
@@ -136,7 +138,7 @@ export function listTickets(input: {
         branch: meta.branch,
         red: meta.red,
         session,
-      }
+      }]
     })
   })
 }

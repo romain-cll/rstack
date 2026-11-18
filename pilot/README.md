@@ -33,7 +33,7 @@ First match wins.
 
 ## What the pane hides
 
-- A worktree whose HEAD is detached with no session matched to it: the app keeps an archived session's worktree in a reuse pool that way, `.rstack/` specs included. With a session matched (a rebase in progress, for example), its tickets are listed.
+- The specs of a worktree whose HEAD is detached with no session matched to it: the app keeps an archived session's worktree in a reuse pool that way, `.rstack/` specs included. Its shipped specs with a branch stay for the rule below to decide from their pull request. With a session matched (a rebase in progress, for example), its tickets are listed.
 - A shipped ticket with a branch whose pull request is `MERGED` or `CLOSED`, with or without a session. A pull request `OPEN`, or `gh` failing, keeps it.
 
 Open session focuses the ticket's session in the app (the pilot's own row has no button); when the app refuses, it runs `open` on the session's `claude://` link.
