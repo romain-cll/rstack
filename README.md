@@ -1,21 +1,35 @@
 # rstack
 
-Skills, agents and guardrails to build features with several coding agents on the same repo, solo or as a team: from a spec you validate to a pull request you merge, tests first.
+A Claude Code plugin to build features with several coding agents on the same repo, solo or as a team: from a spec you validate to a pull request you merge, tests first.
 
-## Compatibility
+## Install
 
-| Host | Status |
+```sh
+claude plugin marketplace add romain-cll/rstack
+claude plugin install rstack@rstack
+```
+
+Restart Claude Code. To update: `claude plugin update rstack@rstack`.
+
+Coming from an earlier `./install.sh`: run `./uninstall.sh` from this repository first. It removes the copies it put in `~/.claude`, which would shadow the plugin's skills and agents. Coming from the `pilot` plugin: `claude plugin uninstall pilot@rstack`, the pane is now part of `rstack`.
+
+The reviewer's write guard needs `jq`.
+
+## What's in it
+
+| | |
 |---|---|
-| Claude Code | supported |
-| OpenCode | planned |
-| Hermes | planned |
-| Codex | planned |
+| `/rs-diagnose` | finds the cause of a problem, or lays out the state of an area, before planning |
+| `/rs-plan` | turns a request into a spec you validate: story, acceptance criteria, technical plan |
+| `/rs-build` | builds it without you: failing tests, implementation, review, with capped fix rounds |
+| `/rs-ship` | rebases, runs the checks again, opens the pull request; the merge is yours |
+| `/rs-explain` | turns an explanation into a visual |
+| agents | `rs-tester`, `rs-dev`, `rs-reviewer`, launched by `/rs-build` |
+| `/pilot` | a pane beside the chat that shows where every ticket stands and which one waits for you: [docs/pilot.md](docs/pilot.md) |
 
-Process and install: [docs/process.md](docs/process.md).
+When another skill or command already uses one of these names, call it with the plugin's prefix: `/rstack:rs-build`.
 
-## Pilot pane
-
-The `pilot` plugin adds a pane beside the chat of one session, the pilot, that shows where every ticket stands and which one waits for you, with a button to open its session. Install it from this repository's marketplace and run `/pilot`: see [pilot/README.md](pilot/README.md).
+The process, step by step: [docs/process.md](docs/process.md).
 
 ## What a project provides
 
@@ -24,3 +38,7 @@ rstack installs once per machine; a project provides its own instructions (`AGEN
 rstack keeps its state in `.rstack/` at the project root, out of git: specs, review histories, diagnoses, visuals.
 
 Details: [docs/process.md](docs/process.md#feature-state--rstack).
+
+## Host
+
+Claude Code only. rstack relies on its subagents, hooks and plugin system; no other host is planned.

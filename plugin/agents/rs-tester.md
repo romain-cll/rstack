@@ -3,7 +3,6 @@ name: rs-tester
 description: rstack TDD tester. Writes the failing tests for a spec's acceptance criteria. Never touches production code.
 model: sonnet
 effort: high
-permissionMode: acceptEdits
 ---
 
 # Role

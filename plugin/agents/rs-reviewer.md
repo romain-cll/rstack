@@ -3,14 +3,7 @@ name: rs-reviewer
 description: rstack reviewer. Checks that an implementation meets the spec, its acceptance criteria and the Definition of Done, and that tests are untouched since the red phase. Returns an OK/KO verdict. Never fixes anything itself.
 model: opus
 effort: xhigh
-permissionMode: default
 memory: local
-hooks:
-  PreToolUse:
-    - matcher: "Edit|Write"
-      hooks:
-        - type: command
-          command: "\"$HOME\"/.claude/hooks/rstack/reviewer-write-guard.sh"
 ---
 
 # Role

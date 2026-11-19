@@ -1,7 +1,7 @@
-// The hooks of pilot/hooks/register.tsx, through the plugin kit.
+// The hooks of plugin/hooks/register.tsx, through the plugin kit.
 //
 // Contract these tests fix beyond the spec:
-// - the pane draws the unshaped array stored at `pilot.tickets` in `$.state`;
+// - the pane draws the unshaped array stored at `rstack.tickets` in `$.state`;
 //   each element is a ticket of tickets.ts plus its derived `state`
 //   ({ worktree, slug, title, status, session?, state, review?, pr? });
 // - a poll reads `git worktree list --porcelain` through `$.process.run`;
@@ -298,7 +298,7 @@ async function mountPane(
   await slash($, 'pilot')
 
   const ui = await $.ui.mount({
-    plugin: 'pilot',
+    plugin: 'rstack',
     surface: 'desktop',
     component: 'Pane',
     requestId: w.seen.opened[0]!,
@@ -361,7 +361,7 @@ test('AC9 — pressing a ticket with no session calls nothing', async ($, on) =>
 })
 
 // pilot-v3-ui AC4: with no ticket, the refresh Button is the only one drawn.
-test('pilot-v3-ui AC4 — pressing refresh collects at once and stores the time of that collect in pilot.polledAt', async ($, on) => {
+test('pilot-v3-ui AC4 — pressing refresh collects at once and stores the time of that collect in rstack.polledAt', async ($, on) => {
   const stored: { key: string; value: unknown }[] = []
   const { ui, seen, clock } = await mountPane($, on, [], on => {
     on('state.set', (_: any, e: any) => {
@@ -450,7 +450,7 @@ test('pilot-v3-ui AC5 — a toi row with no session has no action Button: no But
 })
 
 // A poll over one worktree on a branch, whose features folder holds one
-// shipped spec: what `/pilot` writes to `pilot.tickets`, with `gh` answering
+// shipped spec: what `/pilot` writes to `rstack.tickets`, with `gh` answering
 // `gh`. Each case has its own branch: the pilot keeps a PR a minute per branch.
 async function pollShipped(
   $: any,

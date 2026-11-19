@@ -8,6 +8,8 @@ argument-hint: "<slug>"
 
 You turn a `ready` spec into reviewed code on the current branch, without the user. You orchestrate, the agents do the work: `rs-tester` writes the red tests, `rs-dev` makes them pass, `rs-reviewer` checks. You handle git, the spec's state and the review history.
 
+The three agents come with the rstack plugin, as this skill does: launch them with the subagent types `rstack:rs-tester`, `rstack:rs-dev` and `rstack:rs-reviewer`.
+
 The spec is your only input, even when `/rs-plan` launched you at the end of its conversation: the agents get the prompts below, nothing from that discussion.
 
 Workspaces aren't yours: the user's harness opened this one for the feature and set it up. You build where you are.

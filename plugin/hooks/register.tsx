@@ -37,9 +37,9 @@ const OPEN_SESSION = 'mcp__ccd_window__open_session_in'
 const POLL_MS = 10_000
 const PR_MS = 60_000
 
-const tickets = { plugin: 'pilot', key: 'tickets' } as const
-const polledAt = { plugin: 'pilot', key: 'polledAt' } as const
-const main = { plugin: 'pilot', key: 'main' } as const
+const tickets = { plugin: 'rstack', key: 'tickets' } as const
+const polledAt = { plugin: 'rstack', key: 'polledAt' } as const
+const main = { plugin: 'rstack', key: 'main' } as const
 
 // Per branch: the last `gh` or `glab` answer and when it was asked. A PR read MERGED or
 // CLOSED is final: it is not asked again.

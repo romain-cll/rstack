@@ -1,19 +1,16 @@
-# pilot
+# pilot pane
 
 A pane beside the chat of your "pilot" session: one row per rstack ticket, grouped by who has the ball, the ones waiting for you first. Pressing a row brings its session to the front.
 
 ## Install
 
-```sh
-claude plugin marketplace add <this repository>
-claude plugin install pilot@rstack
-```
+The pane comes with the rstack plugin: see the [README](../README.md#install).
 
 Then run `/pilot` in the session you want as the pilot. The pane opens, and opens again each time that session starts. Closing the pane stops it. Running `/pilot` again in another session moves the pane there. Sessions that did not run `/pilot` open no pane and poll nothing.
 
 ## What it reads
 
-Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, for a shipped ticket with a branch, the pull request or merge request: `glab mr view <branch> -F json` when the worktree's `origin` is on gitlab.com, `gh pr view <branch>` otherwise. The plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
+Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, for a shipped ticket with a branch, the pull request or merge request: `glab mr view <branch> -F json` when the worktree's `origin` is on gitlab.com, `gh pr view <branch>` otherwise. The rstack plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
 
 ## States
 
@@ -70,7 +67,7 @@ There is no control to validate a plan or answer a question from the pane: the a
 ## Checks
 
 ```sh
-claude plugin validate pilot
-npx -y -p typescript@5.6.3 tsc -p pilot
-claude plugin test pilot
+claude plugin validate plugin
+npx -y -p typescript@5.6.3 tsc -p plugin
+claude plugin test plugin
 ```

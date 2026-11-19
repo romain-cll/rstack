@@ -3,7 +3,6 @@ name: rs-dev
 description: rstack TDD developer. Implements the minimal code that makes the tester's red tests pass, then refactors while keeping everything green. Never changes tests.
 model: sonnet
 effort: high
-permissionMode: acceptEdits
 ---
 
 # Role
