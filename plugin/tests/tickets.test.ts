@@ -1,4 +1,4 @@
-// The pure functions of pilot/hooks/tickets.ts. The contract these tests fix:
+// The pure functions of plugin/hooks/tickets.ts. The contract these tests fix:
 //
 //   listTickets({ worktrees, files, sessions, self? }) -> Ticket[]
 //     worktrees: `git worktree list --porcelain` output

@@ -66,6 +66,6 @@ export type PilotRow = PilotTicket & {
 
 declare module 'claude-code' {
   interface PluginState {
-    pilot: { tickets: PilotRow[]; main?: string; polledAt?: number }
+    rstack: { tickets: PilotRow[]; main?: string; polledAt?: number }
   }
 }

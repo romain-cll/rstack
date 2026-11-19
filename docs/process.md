@@ -11,7 +11,7 @@ How a feature goes from a request to a merged pull request, solo or as a team, w
 - **TDD with frozen tests.** Tests are written red first, committed, then frozen: git checks them after each phase. After every run of the dev, `/rs-build` compares the red files with the red commit; the reviewer checks them again.
 - **Shortest test time, every behaviour covered.** Every criterion, and every behaviour the feature's user can trigger (the result of a rule or a calculation, a refusal, an error path taken, a change in stored state — never what the UI shows of it), has a test that observes it, through the cheapest tests that do it: the lowest level that observes the behaviour, one mode unless another runs code or gives a result the first doesn't, no test that checks again what another does. Defensive code may stay untested, and so does rendering: a test observes logic, never what the UI shows of it — not a prop displayed, a layout, a wording, a class, a token, a colour, and never a presentational component such as a table or a card. Checking the UI is the dev's job, in the running application. A ticket with no logic at all therefore has no criterion and no test, and `/rs-build` runs it without a red phase. The plan sets a ceiling, the tester stays under it, the reviewer sends back a behaviour no test observes or a test that breaks the project's written test rules, and the build loops on it without you.
 - **A KO is a real problem.** The reviewer blocks only on a closed list: a changed test, a behaviour no test observes, a red suite, lint or typecheck, an unmet Definition of Done item, a test against the project's test rules, an unplanned dependency or file, and a bug the feature's user triggers with normal actions, with a consequence they'd feel. Everything else is a note in the pull request.
-- **Portable core, host adapters.** Everything that can be plain Markdown is. Host-specific power (hooks, mods, workflows) is layered on top. The agents inherit the session's tools, MCP servers included, and no hook decides in advance what they may run: git catches their overreach after each phase.
+- **One plugin.** Skills, agents, hooks and the pilot pane ship together in the Claude Code plugin `rstack`. The agents inherit the session's tools, MCP servers included, and no hook decides in advance what they may run: git catches their overreach after each phase.
 
 ## Flow
 
@@ -98,7 +98,7 @@ The review history, `<slug>.review.md`, is written by `/rs-build` and read by `r
 
 **The reviewer's checks.** `rs-reviewer` runs the suite, lint and typecheck itself, check-only, with the commands of the project instructions, else of the project's manifest or scripts. No hook filters its Bash: `/rs-build` records `HEAD`, the branch and the clean tree before each review, and compares them after. A change cancels the round, the workspace is restored and a new reviewer runs once; a second cancelled round in a row stops the build. A check it can't run is a blocking item for you to settle.
 
-**Migrating from `.rs/`.** The folder was `.rs/` in earlier versions. Each skill, before reading or writing `.rstack/`, moves `.rs/` to `.rstack/` when `.rs/.gitignore` contains `*` and `.rstack/` doesn't exist, and says so in one line. Both exist → `.rs/` is left alone. A `.rstack/checks` carried over is ignored. The copies installed in `~/.claude` stay on `.rs/` until `./install.sh` runs again.
+**Migrating from `.rs/`.** The folder was `.rs/` in earlier versions. Each skill, before reading or writing `.rstack/`, moves `.rs/` to `.rstack/` when `.rs/.gitignore` contains `*` and `.rstack/` doesn't exist, and says so in one line. Both exist → `.rs/` is left alone. A `.rstack/checks` carried over is ignored.
 
 **Where the spec lives.** In the feature's workspace, next to the code, and nowhere else: the skills and agents that run there share it through the file, not through git. So a feature is planned, built and shipped in the same workspace. The team gets what it needs from the pull request: `/rs-ship` writes the user story, the acceptance criteria and the review notes into it. Deleting the workspace, or a `git clean -x`, deletes the spec.
 
@@ -106,44 +106,40 @@ The review history, `<slug>.review.md`, is written by `/rs-build` and read by `r
 
 The reviewer's memory stays out of git too: `rs-reviewer` keeps it in `.claude/agent-memory-local/rs-reviewer/`, which `/rs-build` adds to `.git/info/exclude` (local to the clone, never committed). Like the spec, it lives in the workspace.
 
-## Portability
+## Host
 
-Supported host today: Claude Code. OpenCode, Hermes and Codex come later, one at a time, each with full support (skills, agents, guards), not just its skills.
+Claude Code only, through its plugin system: rstack relies on its subagents, hooks and mods. No other host is planned.
 
-- **Portable core**: `skills/*/SKILL.md` follow the open Agent Skills format; role prompts are plain Markdown.
-- **Claude Code adapter**: agent frontmatter (model, effort, the reviewer's memory), one write guard, a mod that shows the state of every feature in flight.
-- **Hosts without subagents**: the skill plays the roles one after the other. Guardrails then become instructions only: weaker, still usable.
-
-OpenCode already reads `~/.claude/skills`: once rstack is installed, it sees the skills without the agents and guards. That is not supported; `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` turns it off.
+The agents are plugin agents, and Claude Code ignores the `hooks` and `permissionMode` of an agent shipped in a plugin. The plugin's own `PreToolUse` hook on Edit and Write (`plugin/scripts/agent-edits.sh`) does that work from the call's `agent_type`: it limits `rs-reviewer` to its memory, and lets `rs-tester` and `rs-dev` edit the repository without a prompt, as `acceptEdits` would, never under `.git/`.
 
 ## Repository layout
 
 ```
-skills/
-├── rs-diagnose/
-├── rs-plan/
-├── rs-build/
-├── rs-ship/
-└── rs-explain/
-agents/            rs-tester, rs-dev, rs-reviewer (Claude Code format)
-hooks/             the reviewer's write guard, installed in ~/.claude/hooks/rstack/
+plugin/                 the rstack plugin, everything it ships
+├── .claude-plugin/     plugin.json
+├── skills/             rs-diagnose, rs-plan, rs-build, rs-ship, rs-explain
+├── agents/             rs-tester, rs-dev, rs-reviewer
+├── hooks/              agents.json (the agents' edit hook), hooks.json + register.tsx (the pilot pane)
+├── scripts/            the edit hook's shell scripts
+├── tests/              the pilot pane's tests
+└── types/
+.claude-plugin/         marketplace.json, declaring ./plugin
 docs/
-install.sh, uninstall.sh
-pilot/             the pilot plugin (a pane of the tickets), installed from the marketplace
-.claude-plugin/    marketplace.json, declaring ./pilot
+uninstall.sh            removes the copies of the old install.sh
 ```
 
 ## Install
 
-rstack installs once per machine, at the Claude Code level, not per project. A project only holds what rstack produces (`.rstack/`, out of git) and its own instructions (`AGENTS.md` / `CLAUDE.md`: test and lint commands, Definition of Done).
+rstack installs once per machine, as a Claude Code plugin, not per project. A project only holds what rstack produces (`.rstack/`, out of git) and its own instructions (`AGENTS.md` / `CLAUDE.md`: test and lint commands, Definition of Done).
 
 ```sh
-./install.sh     # copies skills, agents and hooks into ~/.claude
-./uninstall.sh   # removes only what install.sh copied
+claude plugin marketplace add romain-cll/rstack
+claude plugin install rstack@rstack
+claude plugin update rstack@rstack   # later, for a new version
 ```
 
-Everything is a copy, not a link: an edit, a branch switch or a deleted worktree doesn't reach your projects, which keep the version you installed. Re-run `./install.sh` from the version you want to update: it replaces the copies and drops the skills and agents the repo no longer has. It never touches a file it didn't install; `~/.claude/.rstack-manifest` lists what it did. The reviewer's write guard needs `jq`.
+The plugin is a copy, at the version of the marketplace: an edit or a branch switch in this repository doesn't reach your projects. To try a checkout instead, start Claude Code with `claude --plugin-dir plugin`. A machine that ran the old `./install.sh` runs `./uninstall.sh` once first: its copies in `~/.claude` would shadow the plugin's skills and agents. The reviewer's write guard needs `jq`.
 
 ## Not now
 
-Bug fixing (`/rs-fix`), retrospectives, project setup, hosts other than Claude Code, `/rs-build` as a deterministic workflow: each in its own time.
+Bug fixing (`/rs-fix`), retrospectives, project setup, `/rs-build` as a deterministic workflow: each in its own time.

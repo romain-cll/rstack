@@ -1,7 +1,0 @@
-{
-  "name": "pilot",
-  "version": "0.3.1",
-  "author": { "name": "Romain C" },
-  "description": "A pane beside the chat that shows where every rstack ticket stands and which one waits for you.",
-  "types": "./types/index.d.ts"
-}

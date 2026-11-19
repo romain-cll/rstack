@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Removes rstack from Claude Code: what install.sh copied into ~/.claude, as
-# listed in ~/.claude/.rstack-manifest. Nothing else is touched.
+# Removes the copies an old install.sh put into ~/.claude, as listed in
+# ~/.claude/.rstack-manifest, before moving to the rstack plugin: left in place,
+# they would shadow the plugin's skills and agents. Nothing else is touched.
+# Goes away once no machine has those copies left.
 set -euo pipefail
 
 CLAUDE="$HOME/.claude"
@@ -30,5 +32,5 @@ if [ "$removed" -eq 0 ]; then
   echo "Nothing to remove."
 else
   echo
-  echo "Restart Claude Code to unload the agents."
+  echo "Restart Claude Code to unload the agents, then install the plugin: claude plugin install rstack@rstack"
 fi
