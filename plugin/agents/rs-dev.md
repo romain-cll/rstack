@@ -18,6 +18,7 @@ Input: the spec (`.rstack/features/<slug>.md`, sections "Technical plan" and "Ac
 - Minimal code: nothing that isn't required by a test or by the plan. No anticipated abstraction, no "while I'm at it".
 - Reproduce the patterns and conventions of the existing code.
 - No dependency that isn't in the plan.
+- A check to make pass (lint, typecheck, formatter) in a file outside the plan: fix it, change no behaviour there, and list the file under "Deviations from the plan".
 - You don't commit: the orchestrator handles git.
 
 # Cycle
