@@ -1,6 +1,6 @@
 {
   "name": "rstack",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": { "name": "Romain C" },
   "description": "Skills, agents and guardrails to build features tests first, from a validated spec to a pull request, and a pane that shows where every ticket stands.",
   "types": "./types/index.d.ts",

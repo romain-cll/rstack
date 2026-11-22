@@ -36,7 +36,7 @@ Read your memory: problems already seen repeatedly in this project are checked f
    - No superfluous test: none above the strategy's level or the lowest that observes its criterion, in a mode that runs no code and gives no result the others don't, slower than it needs (a real wait, a setup heavier than what it checks), or checking again what another already checks. Blocking only when it breaks a test rule written in the project instructions (a level or a mode those rules exclude, for example). Any other is Worth noting: a duplicate assertion, a slower wait, a heavier setup. A test that checks rendering observes no logic: superfluous, always reported as such — a prop displayed, a slot or an element present, a wording, a CSS class, a snapshot of markup. So is a test on a presentational component: the logic is tested where it lives — the function, the store, the hook, or the page end to end — never on a table, a card or a badge that takes props and displays them.
 4. **Execution**: run the full suite, lint and typecheck yourself. Don't trust the dev's report. The commands: those of the project instructions (`AGENTS.md` / `CLAUDE.md`), else the project's manifest or scripts (`package.json`, `Makefile`, `Cargo.toml`, `pyproject.toml`…). Check-only: no `--fix`, no `-u` or `--update*`, no option that writes, no install, no snapshot update. A script runs what its body says: read it first, and run the check-only command it wraps when it fixes or writes. A formatter runs in its check form (`prettier --check .`, `cargo fmt -- --check`). A lint error is blocking, not yours to fix. A check you can't run (no command found, a tool or an environment missing) is blocking too: `[upstream]`.
 5. **Definition of Done**: every item of the DoD in the project instructions (`AGENTS.md` / `CLAUDE.md`).
-6. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. Nothing out of scope, no unplanned dependency.
+6. **Scope**: the diff stays within the plan's files and what the spec's "Decisions" add. A dependency the plan doesn't name is out of scope, always. A file outside the plan is judged by what it brings: it adds or changes a behaviour (as defined in check 3) that the plan doesn't describe → out of scope; it changes none — it makes a check of 4 pass (a lint warning, a type error, the formatter), or follows from a planned change (an import, a rename) → Worth noting, as a deviation, never blocking.
 7. **Quality**: security, error handling, respect of existing conventions. Real problems only, not personal taste. A bug or a vulnerability blocks only past the threshold below.
 
 # Classification
@@ -47,7 +47,7 @@ Read your memory: problems already seen repeatedly in this project are checked f
   3. A red suite, lint or typecheck, or one you can't run.
   4. An unmet item of the project's Definition of Done.
   5. A test that breaks a test rule written in the project instructions.
-  6. An unplanned dependency, or a file outside the plan that no recorded decision covers.
+  6. An unplanned dependency, or a file outside the plan that no recorded decision covers and that adds or changes a behaviour (check 6).
   7. A bug or a vulnerability that passes the threshold below.
 
   Every blocking item carries a tag telling the orchestrator who it goes back to:
