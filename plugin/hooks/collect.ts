@@ -125,6 +125,15 @@ export async function readPlaneConfig(
   }
 }
 
+// Why the last Plane read failed, for the pane to show: `<tool> list: <reason>`.
+let planeError: string | undefined
+export function takePlaneError(): string | undefined {
+  const error = planeError
+  planeError = undefined
+
+  return error
+}
+
 // One Plane read, its JSON answer; undefined when denied, errored or unparsable.
 // Plane wraps a list answer in `result` (`{ result: { results, ... } }`) and
 // answers relations bare: the wrapper is taken off when there is one.
@@ -132,18 +141,24 @@ async function planeRead(
   $: Engine,
   input: Record<string, unknown>,
 ): Promise<Record<string, any> | undefined> {
+  const failed = (reason: string) => {
+    planeError = `${String(input.tool).replace('mcp__plane__', '')} list: ${reason.slice(0, 200)}`
+
+    return undefined
+  }
   try {
     const answer = await $.tool.call({ ...input, action: 'list' } as never)
-    if (answer.deny !== undefined || answer.isError === true) return undefined
+    if (answer.deny !== undefined) return failed(`refusé (${answer.deny})`)
+    if (answer.isError === true) return failed(`erreur (${answer.text ?? 'sans détail'})`)
     const parsed = JSON.parse(answer.text ?? '')
     const body =
       parsed && typeof parsed.result === 'object' && parsed.result !== null
         ? parsed.result
         : parsed
 
-    return body && typeof body === 'object' ? body : undefined
-  } catch {
-    return undefined
+    return body && typeof body === 'object' ? body : failed(`réponse inattendue (${answer.text})`)
+  } catch (error) {
+    return failed(`illisible (${String(error)})`)
   }
 }
 
@@ -156,7 +171,12 @@ async function planePages(
   let cursor: string | undefined
   do {
     const page = await planeRead($, cursor ? { ...input, cursor } : input)
-    if (!page || !Array.isArray(page.results)) return undefined
+    if (!page) return undefined
+    if (!Array.isArray(page.results)) {
+      planeError = `${String(input.tool).replace('mcp__plane__', '')} list: pas de results (${JSON.stringify(page).slice(0, 200)})`
+
+      return undefined
+    }
     results.push(...page.results)
     cursor = page.next_page_results === true ? page.next_cursor : undefined
   } while (cursor)

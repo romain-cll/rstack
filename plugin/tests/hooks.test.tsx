@@ -1214,3 +1214,47 @@ test('lazy relations — an item already at work costs no relations read', async
   expect(w.related('w1')).toHaveLength(0)
   expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
 })
+
+test('next status — no pilot.json: rstack.nextStatus names the file it looked for', async ($, on) => {
+  const w = await planeWorld(on, { files: {}, dirs: [`${MAIN}/.rstack`] })
+
+  await loadPilot($, w)
+
+  expect(w.state.get('nextStatus')).toContain(`${MAIN}/.rstack/pilot.json`)
+})
+
+test('next status — the project read denied: rstack.nextStatus holds the tool and the reason, and clears once Plane answers', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+  w.plane.fail = e => (e.tool === PLANE_PROJECT ? { deny: 'Not allowed from a pane' } : undefined)
+
+  await loadPilot($, w)
+  expect(w.nextRows()).toEqual([])
+  expect(w.state.get('nextStatus')).toContain('project list')
+  expect(w.state.get('nextStatus')).toContain('Not allowed from a pane')
+
+  w.plane.fail = () => undefined
+  await w.clock.advance(10_000)
+  expect(w.nextIds()).toHaveLength(5)
+  expect(w.state.get('nextStatus')).not.toContain('Not allowed')
+})
+
+test('next status — the project is not in Plane: rstack.nextStatus says so', async ($, on) => {
+  const w = await planeWorld(on, {
+    files: { [`${MAIN}/.rstack/pilot.json`]: JSON.stringify({ plane: { project: 'NOPE' } }) },
+  })
+
+  await loadPilot($, w)
+
+  expect(w.state.get('nextStatus')).toContain('NOPE introuvable')
+})
+
+test('next status — a work items read erroring: rstack.nextStatus holds the error text', async ($, on) => {
+  const w = await planeWorld(on, CONFIGURED)
+  w.plane.fail = e =>
+    e.tool === PLANE_ITEMS ? { result: 'error', text: 'Invalid PQL', isError: true } : undefined
+
+  await loadPilot($, w)
+
+  expect(w.state.get('nextStatus')).toContain('workitem list')
+  expect(w.state.get('nextStatus')).toContain('Invalid PQL')
+})
