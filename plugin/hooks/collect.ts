@@ -2,6 +2,8 @@
 // questions the sessions publish, gh or glab. Their parsing is in tickets.ts.
 import type { EngineInterface } from 'claude-code'
 
+import { planeConfig } from './next'
+import type { PlaneItem, Relations } from './next'
 import { forgeOf, parseMr, parsePr } from './tickets'
 import type { Pr, Question } from './tickets'
 
@@ -95,4 +97,108 @@ export async function readPr(
   const result = await $.process.run(argv, { cwd: worktree }).catch(() => FAILED_READ)
 
   return { result, parse: gitlab ? parseMr : parsePr }
+}
+
+const PLANE = {
+  project: 'mcp__plane__project',
+  state: 'mcp__plane__state',
+  items: 'mcp__plane__workitem',
+  relations: 'mcp__plane__workitem_relation',
+}
+// Open items, epics left out: Plane marks an epic by its type, which a work
+// item read does not flag.
+const OPEN_ITEMS = 'stateGroup IN ("backlog", "unstarted") AND NOT isEpic()'
+
+// `.rstack/pilot.json`, or `.rs/pilot.json` when `.rstack/` is absent, in the
+// main checkout. Undefined when there is none or it names no Plane project.
+export async function readPlaneConfig(
+  $: Engine,
+  main: string,
+): Promise<{ project: string } | undefined> {
+  try {
+    const root = (await $.fs.exists(`${main}/.rstack`)) ? '.rstack' : '.rs'
+    const text = await $.fs.read(`${main}/${root}/pilot.json`)
+
+    return typeof text === 'string' ? planeConfig(text) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// One Plane read, its JSON answer; undefined when denied, errored or unparsable.
+async function planeRead(
+  $: Engine,
+  input: Record<string, unknown>,
+): Promise<Record<string, any> | undefined> {
+  try {
+    const answer = await $.tool.call({ ...input, action: 'list' } as never)
+    if (answer.deny !== undefined || answer.isError === true) return undefined
+    const body = JSON.parse(answer.text ?? '')
+
+    return body && typeof body === 'object' ? body : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// Every page of a list read.
+async function planePages(
+  $: Engine,
+  input: Record<string, unknown>,
+): Promise<any[] | undefined> {
+  const results: any[] = []
+  let cursor: string | undefined
+  do {
+    const page = await planeRead($, cursor ? { ...input, cursor } : input)
+    if (!page || !Array.isArray(page.results)) return undefined
+    results.push(...page.results)
+    cursor = page.next_page_results === true ? page.next_cursor : undefined
+  } while (cursor)
+
+  return results
+}
+
+export async function readProject($: Engine, identifier: string): Promise<string | undefined> {
+  const projects = await planePages($, { tool: PLANE.project })
+
+  return projects?.find(p => p.identifier === identifier)?.id
+}
+
+// State id -> state group.
+export async function readStates(
+  $: Engine,
+  project: string,
+): Promise<Record<string, string> | undefined> {
+  const states = await planePages($, { tool: PLANE.state, project_id: project })
+
+  return states && Object.fromEntries(states.map(s => [s.id, s.group]))
+}
+
+export async function readWorkItems(
+  $: Engine,
+  project: string,
+): Promise<PlaneItem[] | undefined> {
+  return planePages($, {
+    tool: PLANE.items,
+    project_id: project,
+    pql: OPEN_ITEMS,
+    expand: 'state',
+  })
+}
+
+export async function readRelations(
+  $: Engine,
+  project: string,
+  workitem: string,
+): Promise<Relations | undefined> {
+  const body = await planeRead($, {
+    tool: PLANE.relations,
+    project_id: project,
+    workitem_id: workitem,
+  })
+  const { blocking, blocked_by } = body?.dependencies ?? {}
+
+  return Array.isArray(blocking) && Array.isArray(blocked_by)
+    ? { blocking, blocked_by }
+    : undefined
 }

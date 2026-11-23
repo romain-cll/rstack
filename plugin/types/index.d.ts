@@ -64,8 +64,18 @@ export type PilotRow = PilotTicket & {
   pr?: PilotPr
 }
 
+// A Plane ticket the pane offers to launch.
+export type PilotNext = {
+  id: string
+  name: string
+  summary?: string
+  unblocks: string[]
+  workitemId: string
+  updatedAt: string
+}
+
 declare module 'claude-code' {
   interface PluginState {
-    rstack: { tickets: PilotRow[]; main?: string; polledAt?: number }
+    rstack: { tickets: PilotRow[]; main?: string; polledAt?: number; next: PilotNext[] }
   }
 }

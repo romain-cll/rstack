@@ -12,6 +12,24 @@ Then run `/pilot` in the session you want as the pilot. The pane opens, and open
 
 Every 10 seconds, from the pilot session: `git worktree list --porcelain`, the `.rstack/features/` folder of each worktree (`.rs/features/` when `.rstack/` is absent), the sessions the app lists (the pilot reads its own through `get_session`, the list leaves it out), and the questions the ticket sessions publish. Every 60 seconds, for a shipped ticket with a branch, the pull request or merge request: `glab mr view <branch> -F json` when the worktree's `origin` is on gitlab.com, `gh pr view <branch>` otherwise. The rstack plugin must be loaded in the ticket sessions too: each publishes its pending `AskUserQuestion` to the plugin's store, with its app session id, so a question only counts for the ticket whose session asked it.
 
+## The next tickets, from Plane
+
+Optional. With a `.rstack/pilot.json` in the main checkout (the first worktree of `git worktree list --porcelain`; `.rs/pilot.json` when `.rstack/` is absent) that names the Plane project by its identifier, the pane lists the 5 tickets to launch next:
+
+```json
+{ "plane": { "project": "SPOTIME" } }
+```
+
+Without that file, or without `plane.project`, no Plane tool is called and the section does not show. The file is local to each clone: `.rstack/` stays out of git. The Plane MCP server must be named `plane` in your settings (the pane calls `mcp__plane__*`), and the pane never writes to Plane.
+
+What it reads, through the Plane MCP: the project id (`project list`) and its states (`state list`) once per pane load; the open work items (`workitem list`, PQL `stateGroup IN ("backlog", "unstarted") AND NOT isEpic()`, every page) at most every 60 seconds; the relations of each item (`workitem_relation list`) at most every 5 minutes. `Actualiser` reads them all again at once. A read that fails leaves the last list as it was.
+
+A candidate is a backlog or unstarted item, not a draft, whose every `blocked_by` item is completed or cancelled. The rows come by priority (urgent, high, medium, low, none), then by the number of open items they block (most first), then by sequence number. A ticket whose id (`SPOTIME-42`, any case) is in a spec title, a worktree path, the title of a session not archived, or was launched from the pane since it loaded, is left out and the next one takes its place.
+
+Each row shows its id, its name, a one-line summary, and `débloque <ids>`. The summary is written by Haiku (`$.model.complete`) from the name and the description, kept per id and `updated_at`; when the call is not answered, the row has none and the call is made again at the next poll.
+
+`Lancer` starts a session through `start_session` (a fresh worktree on the lowercased id) whose prompt starts with `/rs-plan <ID> — <name>`, followed by the ticket's description. The row leaves at once. When the app refuses (denied, or an error), the pilot session is asked to start the session itself and to report the refusal as a pane defect.
+
 ## States
 
 First match wins.
