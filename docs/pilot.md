@@ -6,6 +6,8 @@ A pane beside the chat of your "pilot" session: one row per rstack ticket, group
 
 The pane comes with the rstack plugin: see the [README](../README.md#install).
 
+Run `/rs-init` once in the repository, from any of its sessions: it creates `.rstack/`, allows the tools the pilot calls in the main checkout's `.claude/settings.local.json`, and names the Plane project in `.rstack/pilot.json`. Without those rules the pilot's `Lancer` is refused. It changes nothing on a second run.
+
 Then run `/pilot` in the session you want as the pilot. The pane opens, and opens again each time that session starts. Closing the pane stops it. Running `/pilot` again in another session moves the pane there. Sessions that did not run `/pilot` open no pane and poll nothing.
 
 ## What it reads
@@ -20,7 +22,7 @@ Optional. With a `.rstack/pilot.json` in the main checkout (the first worktree o
 { "plane": { "project": "SPOTIME" } }
 ```
 
-Without that file, or without `plane.project`, no Plane tool is called and the section does not show. The file is local to each clone: `.rstack/` stays out of git. The Plane MCP server must be named `plane` in your settings (the pane calls `mcp__plane__*`), and the pane never writes to Plane.
+`/rs-init` writes that file, from the projects the Plane MCP lists. Without it, or without `plane.project`, no Plane tool is called and the section does not show. The file is local to each clone: `.rstack/` stays out of git. The Plane MCP server must be named `plane` in your settings (the pane calls `mcp__plane__*`), and the pane never writes to Plane.
 
 What it reads, through the Plane MCP: the project id (`project list`) and its states (`state list`) once per pane load; the open work items (`workitem list`, PQL `stateGroup IN ("backlog", "unstarted") AND NOT isEpic()`, every page) at most every 60 seconds; the relations of each item (`workitem_relation list`) at most every 5 minutes. `Actualiser` reads them all again at once. A read that fails leaves the last list as it was.
 

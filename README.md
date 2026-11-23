@@ -9,7 +9,7 @@ claude plugin marketplace add romain-cll/rstack
 claude plugin install rstack@rstack
 ```
 
-Restart Claude Code. To update: `claude plugin update rstack@rstack`.
+Restart Claude Code. To update: `claude plugin update rstack@rstack`. Then run `/rs-init` once in each repository you use rstack on.
 
 Coming from an earlier `./install.sh`: run `./uninstall.sh` from this repository first. It removes the copies it put in `~/.claude`, which would shadow the plugin's skills and agents. Coming from the `pilot` plugin: `claude plugin uninstall pilot@rstack`, the pane is now part of `rstack`.
 
@@ -19,6 +19,7 @@ The reviewer's write guard needs `jq`.
 
 | | |
 |---|---|
+| `/rs-init` | sets up a repository once: the state folder, the permissions the pilot needs, its Plane project |
 | `/rs-diagnose` | finds the cause of a problem, or lays out the state of an area, before planning |
 | `/rs-plan` | turns a request into a spec you validate: story, acceptance criteria, technical plan |
 | `/rs-build` | builds it without you: failing tests, implementation, review, with capped fix rounds |
