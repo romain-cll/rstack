@@ -760,6 +760,7 @@ async function planeWorld(
 
   const plane = {
     items: o.items ?? [planeItem(1), planeItem(2)],
+    pages: undefined as any[][] | undefined,
     relations: {} as Record<string, { blocking: any[]; blocked_by: any[] }>,
     calls: [] as any[],
     // An answer to put in place of Plane's, for the call asked.
@@ -775,12 +776,26 @@ async function planeWorld(
     if (failed !== undefined) return failed
     if (e.tool === PLANE_PROJECT)
       return ok({
-        results: [{ id: 'proj-1', identifier: 'SPOTIME', name: 'Spotime' }],
+        results: [
+          { id: 'proj-0', identifier: 'OTHER', name: 'Other' },
+          { id: 'proj-1', identifier: 'SPOTIME', name: 'Spotime' },
+        ],
         next_page_results: false,
       })
     if (e.tool === PLANE_STATE) return ok({ results: PLANE_STATES, next_page_results: false })
-    if (e.tool === PLANE_ITEMS)
-      return ok({ results: plane.items, next_page_results: false })
+    if (e.tool === PLANE_ITEMS) {
+      // Pages: the first answers with `next_cursor`, and each cursor is `cur-<n>`.
+      const pages = plane.pages
+      if (!pages) return ok({ results: plane.items, next_page_results: false })
+      const at = e.cursor ? Number(String(e.cursor).slice(4)) : 0
+      const more = at + 1 < pages.length
+
+      return ok({
+        results: pages[at],
+        next_page_results: more,
+        ...(more ? { next_cursor: `cur-${at + 1}` } : {}),
+      })
+    }
     if (e.tool === PLANE_RELATIONS)
       return ok({
         dependencies: plane.relations[e.workitem_id] ?? { blocking: [], blocked_by: [] },
@@ -981,6 +996,78 @@ test('pilot-next AC6 — pressing Lancer starts the session once with the ticket
   expect(w.nextIds()).not.toContain('SPOTIME-1')
   expect(w.started()).toHaveLength(1)
   await ui.unmount()
+})
+
+test('pilot-next AC6 — a start_session still pending: the row has already left rstack.next and a second press on it starts nothing more', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+  let release: () => void = () => {}
+  const gate = new Promise<void>(resolve => (release = resolve))
+  w.plane.start = () => gate.then(() => ({ result: {}, text: '{}' }))
+  await loadPilot($, w)
+  const ui = await mountNext($, w)
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+  const lancer = buttons.find(b => JSON.stringify(b).includes('Lancer'))
+  expect(lancer).toBeDefined()
+
+  // A press waits for the work its handler left running: not awaited here.
+  const first = ui.press({ key: lancer.key }).catch(() => undefined)
+  await w.clock.settle()
+
+  expect(w.started()).toHaveLength(1)
+  expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
+
+  const second = ui.press({ key: lancer.key }).catch(() => undefined)
+  await w.clock.settle()
+  expect(w.started()).toHaveLength(1)
+
+  release()
+  await Promise.all([first, second])
+  await w.clock.settle()
+  expect(w.started()).toHaveLength(1)
+  expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
+  await ui.unmount()
+})
+
+test('pilot-next AC2 — every page of the work items is read, the cursor sent back, and every read carries the id of the configured project', async ($, on) => {
+  const w = await planeWorld(on, CONFIGURED)
+  w.plane.pages = [[planeItem(1), planeItem(2)], [planeItem(3)]]
+
+  await loadPilot($, w)
+
+  const reads = w.listed(PLANE_ITEMS)
+  expect(reads).toHaveLength(2)
+  expect(reads[0].cursor || undefined).toBeUndefined()
+  expect(reads[1].cursor).toBe('cur-1')
+  expect(w.nextIds()).toEqual(['SPOTIME-1', 'SPOTIME-2', 'SPOTIME-3'])
+  const projectReads = w.plane.calls.filter(e => e.tool !== PLANE_PROJECT)
+  expect(projectReads.length).toBeGreaterThan(0)
+  for (const read of projectReads) expect(read.project_id).toBe('proj-1')
+  // One relations read per item of both pages.
+  for (const id of ['w1', 'w2', 'w3']) expect(w.related(id)).toHaveLength(1)
+})
+
+test('pilot-next AC8 — a relations read failing after a good poll: rstack.next stays and the item blocked by an open one is not listed', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: [planeItem(1), planeItem(2)] })
+  w.plane.relations = {
+    w1: { blocking: [{ id: 'w2', sequence_id: 2, project_id: 'proj-1', state_id: 's-unstarted' }], blocked_by: [] },
+    w2: { blocking: [], blocked_by: [{ id: 'w1', sequence_id: 1, project_id: 'proj-1', state_id: 's-unstarted' }] },
+  }
+  await loadPilot($, w)
+  const before = w.nextRows()
+  expect(w.nextIds()).toEqual(['SPOTIME-1'])
+  const polled = w.writes.filter(k => k === 'polledAt').length
+
+  w.plane.fail = e =>
+    e.tool === PLANE_RELATIONS && e.workitem_id === 'w2'
+      ? { result: 'error', text: 'boom', isError: true }
+      : undefined
+  // Past the 5 minutes its relations are kept.
+  await w.clock.advance(320_000)
+
+  expect(w.related('w2').length).toBeGreaterThan(1)
+  expect(w.nextRows()).toEqual(before)
+  expect(w.nextIds()).not.toContain('SPOTIME-2')
+  expect(w.writes.filter(k => k === 'polledAt').length).toBeGreaterThan(polled)
 })
 
 const REFUSALS = [
