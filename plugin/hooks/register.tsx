@@ -1,15 +1,22 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { PilotRow } from '../types'
+import type { PilotNext, PilotRow, PilotTicket } from '../types'
 import {
   QUESTION_PREFIX,
   readFiles,
+  readPlaneConfig,
   readPr,
-  readSelf,
+  readProject,
   readQuestions,
+  readRelations,
+  readSelf,
   readSessions,
+  readStates,
+  readWorkItems,
   readWorktrees,
 } from './collect'
+import { candidates, excludedIds, rankNext, startArgs, summaryKey, summaryPrompt } from './next'
+import type { Candidate, PlaneItem, Relations } from './next'
 import type { Pr } from './tickets'
 import {
   counters,
@@ -34,17 +41,38 @@ type Engine = EngineInterface
 const PANE = 'pilot'
 const MARK = 'pilot'
 const OPEN_SESSION = 'mcp__ccd_window__open_session_in'
+const START_SESSION = 'mcp__ccd_session__start_session'
 const POLL_MS = 10_000
 const PR_MS = 60_000
+const ITEMS_MS = 60_000
+const RELATIONS_MS = 300_000
 
 const tickets = { plugin: 'rstack', key: 'tickets' } as const
 const polledAt = { plugin: 'rstack', key: 'polledAt' } as const
 const main = { plugin: 'rstack', key: 'main' } as const
+const nextKey = { plugin: 'rstack', key: 'next' } as const
 
 // Per branch: the last `gh` or `glab` answer and when it was asked. A PR read MERGED or
 // CLOSED is final: it is not asked again.
 const prs = new Map<string, { at: number; pr: Pr | undefined }>()
 let timer: { cancel: () => void } | undefined
+
+// What Plane answered since the pane loaded: the project, its states, the work
+// items (60 s) and the relations of each (5 min). `Actualiser` empties it.
+type PlaneCache = {
+  project?: string
+  states?: Record<string, string>
+  items?: { at: number; list: PlaneItem[] }
+  relations: Map<string, { at: number; relations: Relations }>
+}
+let plane: PlaneCache = { relations: new Map() }
+// The ids launched from the pane, which Plane may still list as unstarted.
+const launched = new Set<string>()
+// What the last build of the list rests on, so a launch can rebuild it at once.
+let known:
+  | { pool: Candidate[]; tickets: PilotTicket[]; paths: string[]; sessions: string }
+  | undefined
+let planeBusy = false
 
 async function prOf($: Engine, worktree: string, branch: string) {
   const now = await $.clock.now()
@@ -62,10 +90,11 @@ async function poll($: Engine) {
   const collectedAt = await $.clock.now()
   const porcelain = await readWorktrees($)
   const files = await readFiles($, worktreePaths(porcelain))
+  const sessions = await readSessions($)
   const listed = listTickets({
     worktrees: porcelain,
     files,
-    sessions: await readSessions($),
+    sessions,
     self: await readSelf($),
   })
   const questions = await readQuestions($)
@@ -100,10 +129,129 @@ async function poll($: Engine) {
   await $.state.set(main, worktreePaths(porcelain)[0]?.split('/').pop() ?? '')
   await $.state.set(tickets, JSON.parse(JSON.stringify(rows)))
   await $.state.set(polledAt, collectedAt)
+  await pollPlane($, porcelain, listed, sessions).catch(() => undefined)
+}
+
+// The summary of a candidate: kept per (id, updated_at), else asked from Haiku.
+// A call that is not answered leaves none, and is made again at the next poll.
+async function summaryOf($: Engine, candidate: Candidate): Promise<string | undefined> {
+  const key = summaryKey(candidate.id, candidate.updatedAt)
+  const kept = await $.store.get(key)
+  if (typeof kept === 'string') return kept
+  const answer = await $.model.complete({
+    model: 'haiku',
+    prompt: summaryPrompt(candidate.name, candidate.description),
+    maxTokens: 200,
+  })
+  const text = answer.isAnswered ? answer.text.trim() : ''
+  if (text === '') return undefined
+  await $.store.set(key, text)
+
+  return text
+}
+
+// The 5 rows from the known candidates, the ids at work and the launched ones.
+async function publishNext($: Engine) {
+  if (!known) return
+  const excluded = excludedIds(known.tickets, known.paths, known.sessions, launched)
+  const rows: PilotNext[] = []
+  for (const candidate of rankNext(known.pool, excluded)) {
+    rows.push({
+      id: candidate.id,
+      name: candidate.name,
+      summary: await summaryOf($, candidate).catch(() => undefined),
+      unblocks: candidate.unblocks,
+      workitemId: candidate.workitemId,
+      updatedAt: candidate.updatedAt,
+    })
+  }
+  await $.state.set(nextKey, JSON.parse(JSON.stringify(rows)))
+}
+
+// Reads Plane at its own cadence. A read that fails leaves the last list as it
+// is: what was read stays cached, the rest is asked again at the next poll.
+async function pollPlane($: Engine, porcelain: string, listed: PilotTicket[], sessions: string) {
+  const paths = worktreePaths(porcelain)
+  const config = await readPlaneConfig($, paths[0] ?? '')
+  if (!config) {
+    known = undefined
+    await $.state.set(nextKey, [])
+
+    return
+  }
+  if (planeBusy) return
+  planeBusy = true
+  try {
+    const now = await $.clock.now()
+    plane.project ??= await readProject($, config.project)
+    if (plane.project === undefined) return
+    plane.states ??= await readStates($, plane.project)
+    if (plane.states === undefined) return
+    if (!plane.items || now - plane.items.at >= ITEMS_MS) {
+      const list = await readWorkItems($, plane.project)
+      if (list === undefined) return
+      plane.items = { at: now, list }
+    }
+    const relations: Record<string, Relations> = {}
+    for (const item of plane.items.list) {
+      let kept = plane.relations.get(item.id)
+      if (!kept || now - kept.at >= RELATIONS_MS) {
+        const fresh = await readRelations($, plane.project, item.id)
+        if (fresh === undefined) return
+        kept = { at: now, relations: fresh }
+        plane.relations.set(item.id, kept)
+      }
+      relations[item.id] = kept.relations
+    }
+    known = {
+      pool: candidates(plane.items.list, relations, plane.states, config.project),
+      tickets: listed,
+      paths,
+      sessions,
+    }
+    await publishNext($)
+  } finally {
+    planeBusy = false
+  }
+}
+
+// Starts the session of a ticket. Refused from the pane, the pilot session is
+// asked to start it, and to report the refusal as a pane defect.
+async function launch($: Engine, row: PilotNext) {
+  if (launched.has(row.id)) return
+  launched.add(row.id)
+  // The row leaves before anything is awaited: no second press can start it again.
+  const { value: shown = [] } = await $.state.get(nextKey)
+  await $.state.set(
+    nextKey,
+    shown.filter(r => r.id !== row.id),
+  )
+  const description =
+    known?.pool.find(c => c.workitemId === row.workitemId)?.description ?? ''
+  const args = startArgs(row, description)
+  const starting = $.tool
+    .call({ tool: START_SESSION, ...args })
+    .catch((error: unknown) => ({ isError: true, text: String(error), deny: undefined }))
+  // The next candidate takes its place while the app starts the session.
+  await publishNext($)
+  const answer = await starting
+  if (answer.deny !== undefined || answer.isError === true) {
+    const reason = answer.deny ?? answer.text ?? 'no reason given'
+    await $.prompt.submit({
+      text:
+        `The rstack pilot pane could not start the session of ${row.id}: ` +
+        `\`${START_SESSION}\` was refused with "${reason}". ` +
+        `Start that session yourself with this input:\n\n${JSON.stringify(args, null, 2)}\n\n` +
+        `Then report the refusal and its reason to the user as a pane defect to fix.`,
+    })
+  }
 }
 
 async function startPolling($: Engine, id: string) {
   timer?.cancel()
+  plane = { relations: new Map() }
+  launched.clear()
+  known = undefined
   const tick = async () => {
     if ((await $.store.get(MARK)) !== id) {
       timer?.cancel()
@@ -179,6 +327,11 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button, Link } = $.ui.resolve(e)
     const { value: rows = [] } = await $.state.get(tickets)
+    // Rows that are not a PilotNext (an unset key, a stub answering one value
+    // to every key) are not drawn.
+    const upNext = ((await $.state.get(nextKey)).value ?? []).filter(
+      row => Array.isArray(row?.unblocks),
+    )
     const folder = (await $.state.get(main)).value
     const collected = (await $.state.get(polledAt)).value
     const now = await $.clock.now()
@@ -288,7 +441,13 @@ export const register: Register = on => {
                 {`collecte à ${clock(collected)}`}
               </Text>
             )}
-            <Button key="refresh" onPress={() => void poll($).catch(() => undefined)}>
+            <Button
+              key="refresh"
+              onPress={() => {
+                plane = { relations: new Map() }
+                void poll($).catch(() => undefined)
+              }}
+            >
               Actualiser
             </Button>
           </Box>
@@ -425,12 +584,48 @@ export const register: Register = on => {
               )}
             </Box>
           ))}
+        {upNext.length > 0 && (
+          <Box flexDirection="column" gap={1}>
+            <Text size="caption" dimColor>
+              {SECTION_TITLES.next}
+            </Text>
+            {upNext.map(row =>
+              card(
+                `next:${row.id}`,
+                'inactive',
+                <>
+                  <Box gap={1} minWidth={0} overflow="hidden">
+                    <Text mono dimColor>
+                      {row.id}
+                    </Text>
+                    <Text weight="medium" wrap="truncate-end">
+                      {row.name}
+                    </Text>
+                  </Box>
+                  <Box>{row.summary && <Text dimColor>{row.summary}</Text>}</Box>
+                  <Box justifyContent="space-between" flexWrap="wrap" gap={1}>
+                    <Text size="caption" dimColor>
+                      {row.unblocks.length > 0 ? `débloque ${row.unblocks.join(', ')}` : ''}
+                    </Text>
+                    <Button
+                      key={`next:${row.id}:launch`}
+                      variant="secondary"
+                      onPress={() => void launch($, row).catch(() => undefined)}
+                    >
+                      Lancer
+                    </Button>
+                  </Box>
+                </>,
+              ),
+            )}
+          </Box>
+        )}
       </Box>
     )
   })
 }
 
-const SECTION_TITLES = { toi: 'À toi', running: 'En cours', pr: 'PR' } as const
+const SECTION_TITLES = { toi: 'À toi', running: 'En cours', pr: 'PR', next: 'À lancer' } as const
 
 const LABELS: Record<string, string> = {
   'awaiting-answer': 'Réponse attendue',
