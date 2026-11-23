@@ -29,7 +29,7 @@ export type Candidate = {
   unblocks: string[]
 }
 
-const LIMIT = 5
+export const LIMIT = 5
 const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none']
 const DONE = ['completed', 'cancelled']
 const STARTABLE = ['backlog', 'unstarted']
@@ -48,6 +48,29 @@ export function planeConfig(json: string): { project: string } | undefined {
 const isOpen = (rel: Rel, groups: Record<string, string>) =>
   !DONE.includes(groups[rel.state_id] ?? '')
 
+const isStartable = (item: PlaneItem) =>
+  STARTABLE.includes(item.state?.group ?? '') && item.is_draft !== true
+
+export const isBlocked = (relations: Relations, stateGroups: Record<string, string>) =>
+  relations.blocked_by.some(rel => isOpen(rel, stateGroups))
+
+// The startable items not at work, in the order their relations are read:
+// Plane gives an item's relations one call at a time, so the pane reads them
+// by priority and stops once it has enough free items.
+export function readOrder(
+  items: PlaneItem[],
+  excluded: Set<string>,
+  identifier: string,
+): PlaneItem[] {
+  return items
+    .filter(item => isStartable(item) && !excluded.has(`${identifier}-${item.sequence_id}`.toUpperCase()))
+    .sort(
+      (a, b) =>
+        rankOf(a.priority ?? 'none') - rankOf(b.priority ?? 'none') ||
+        a.sequence_id - b.sequence_id,
+    )
+}
+
 export function candidates(
   items: PlaneItem[],
   relations: Record<string, Relations>,
@@ -56,10 +79,9 @@ export function candidates(
 ): Candidate[] {
   const found: Candidate[] = []
   for (const item of items) {
-    const group = item.state?.group ?? ''
-    if (!STARTABLE.includes(group) || item.is_draft === true) continue
+    if (!isStartable(item)) continue
     const { blocking = [], blocked_by = [] } = relations[item.id] ?? {}
-    if (blocked_by.some(rel => isOpen(rel, stateGroups))) continue
+    if (isBlocked({ blocking, blocked_by }, stateGroups)) continue
     found.push({
       id: `${identifier}-${item.sequence_id}`,
       name: item.name,
