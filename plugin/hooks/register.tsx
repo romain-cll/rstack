@@ -218,13 +218,23 @@ async function pollPlane($: Engine, porcelain: string, listed: PilotTicket[], se
 // Starts the session of a ticket. Refused from the pane, the pilot session is
 // asked to start it, and to report the refusal as a pane defect.
 async function launch($: Engine, row: PilotNext) {
+  if (launched.has(row.id)) return
   launched.add(row.id)
+  // The row leaves before anything is awaited: no second press can start it again.
+  const { value: shown = [] } = await $.state.get(nextKey)
+  await $.state.set(
+    nextKey,
+    shown.filter(r => r.id !== row.id),
+  )
   const description =
     known?.pool.find(c => c.workitemId === row.workitemId)?.description ?? ''
   const args = startArgs(row, description)
-  const answer = await $.tool
+  const starting = $.tool
     .call({ tool: START_SESSION, ...args })
     .catch((error: unknown) => ({ isError: true, text: String(error), deny: undefined }))
+  // The next candidate takes its place while the app starts the session.
+  await publishNext($)
+  const answer = await starting
   if (answer.deny !== undefined || answer.isError === true) {
     const reason = answer.deny ?? answer.text ?? 'no reason given'
     await $.prompt.submit({
@@ -235,7 +245,6 @@ async function launch($: Engine, row: PilotNext) {
         `Then report the refusal and its reason to the user as a pane defect to fix.`,
     })
   }
-  await publishNext($)
 }
 
 async function startPolling($: Engine, id: string) {
