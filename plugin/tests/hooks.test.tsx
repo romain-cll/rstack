@@ -768,6 +768,8 @@ async function planeWorld(
     start: (_e: any): any => ({ result: {}, text: '{}' }),
   }
   const ok = (body: unknown) => ({ result: {}, text: JSON.stringify(body) })
+  // Plane wraps a list answer in `result`; a relations answer comes bare.
+  const listed = (body: unknown) => ok({ result: body })
   w.app.otherTool = (e: any) => {
     if (e.tool === START_SESSION) return plane.start(e)
     if (!String(e.tool).startsWith('mcp__plane__')) return undefined
@@ -775,22 +777,22 @@ async function planeWorld(
     const failed = plane.fail(e)
     if (failed !== undefined) return failed
     if (e.tool === PLANE_PROJECT)
-      return ok({
+      return listed({
         results: [
           { id: 'proj-0', identifier: 'OTHER', name: 'Other' },
           { id: 'proj-1', identifier: 'SPOTIME', name: 'Spotime' },
         ],
         next_page_results: false,
       })
-    if (e.tool === PLANE_STATE) return ok({ results: PLANE_STATES, next_page_results: false })
+    if (e.tool === PLANE_STATE) return listed({ results: PLANE_STATES, next_page_results: false })
     if (e.tool === PLANE_ITEMS) {
       // Pages: the first answers with `next_cursor`, and each cursor is `cur-<n>`.
       const pages = plane.pages
-      if (!pages) return ok({ results: plane.items, next_page_results: false })
+      if (!pages) return listed({ results: plane.items, next_page_results: false })
       const at = e.cursor ? Number(String(e.cursor).slice(4)) : 0
       const more = at + 1 < pages.length
 
-      return ok({
+      return listed({
         results: pages[at],
         next_page_results: more,
         ...(more ? { next_cursor: `cur-${at + 1}` } : {}),

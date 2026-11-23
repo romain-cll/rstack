@@ -126,6 +126,8 @@ export async function readPlaneConfig(
 }
 
 // One Plane read, its JSON answer; undefined when denied, errored or unparsable.
+// Plane wraps a list answer in `result` (`{ result: { results, ... } }`) and
+// answers relations bare: the wrapper is taken off when there is one.
 async function planeRead(
   $: Engine,
   input: Record<string, unknown>,
@@ -133,7 +135,11 @@ async function planeRead(
   try {
     const answer = await $.tool.call({ ...input, action: 'list' } as never)
     if (answer.deny !== undefined || answer.isError === true) return undefined
-    const body = JSON.parse(answer.text ?? '')
+    const parsed = JSON.parse(answer.text ?? '')
+    const body =
+      parsed && typeof parsed.result === 'object' && parsed.result !== null
+        ? parsed.result
+        : parsed
 
     return body && typeof body === 'object' ? body : undefined
   } catch {
