@@ -793,7 +793,7 @@ async function planeWorld(
   on('model.complete', (_: any, e: any) => {
     model.calls.push(e)
 
-    return model.answer(e)
+    return { value: model.answer(e) }
   })
   const submits: any[] = []
   on('prompt.submit', (_: any, e: any) => {
