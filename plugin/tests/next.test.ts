@@ -20,6 +20,9 @@
 //     tickets: [{ title? }] (what listTickets gives); sessionsJson: the JSON
 //     text `list_sessions` answers ([{ title, isArchived }]); upper-case ids out
 //   startArgs(row, description) -> the input of `start_session`, `tool` aside
+//   readOrder(items, excluded, identifier) -> the startable items not excluded,
+//     by priority then sequence: the order their relations are read in
+//   isBlocked(relations, stateGroups) -> whether an open item blocks it
 //
 // Not covered, and why: "not an epic" in AC2 (see the report).
 import { expect, test } from 'claude-code/testing'
@@ -27,7 +30,9 @@ import { expect, test } from 'claude-code/testing'
 import {
   candidates,
   excludedIds,
+  isBlocked,
   planeConfig,
+  readOrder,
   rankNext,
   startArgs,
 } from '../hooks/next'
@@ -219,4 +224,29 @@ test('AC6 — the start arguments: a fresh worktree session on the lowercased id
   expect(args.prompt.startsWith('/rs-plan SPOTIME-42 — Export the planning')).toBe(true)
   expect(args.prompt).toContain('Plain text of the ticket.')
   expect(args.background.length).toBeGreaterThanOrEqual(80)
+})
+
+test('lazy relations — readOrder keeps the startable items not excluded, by priority then sequence', () => {
+  const items = [
+    item(1),
+    item(2, { priority: 'low' }),
+    item(3, { priority: 'urgent' }),
+    item(4, { state: { group: 'started' } }),
+    item(5, { is_draft: true }),
+    item(6, { priority: 'high', state: { group: 'backlog' } }),
+    item(7, { priority: 'high' }),
+    item(8, { priority: 'urgent' }),
+    item(9, { priority: null }),
+  ]
+
+  const order = readOrder(items, new Set(['SPOTIME-8']), 'SPOTIME')
+
+  expect(order.map(i => i.sequence_id)).toEqual([3, 6, 7, 2, 1, 9])
+})
+
+test('lazy relations — isBlocked is true while one blocker is open, false once all are done or cancelled', () => {
+  expect(isBlocked(free, GROUPS)).toBe(false)
+  expect(isBlocked({ blocking: [rel(2, 's-unstarted')], blocked_by: [] }, GROUPS)).toBe(false)
+  expect(isBlocked({ blocking: [], blocked_by: [rel(4, 's-done'), rel(5, 's-cancel')] }, GROUPS)).toBe(false)
+  expect(isBlocked({ blocking: [], blocked_by: [rel(4, 's-done'), rel(1, 's-backlog')] }, GROUPS)).toBe(true)
 })

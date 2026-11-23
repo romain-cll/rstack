@@ -15,7 +15,17 @@ import {
   readWorkItems,
   readWorktrees,
 } from './collect'
-import { candidates, excludedIds, rankNext, startArgs, summaryKey, summaryPrompt } from './next'
+import {
+  LIMIT,
+  candidates,
+  excludedIds,
+  isBlocked,
+  rankNext,
+  readOrder,
+  startArgs,
+  summaryKey,
+  summaryPrompt,
+} from './next'
 import type { Candidate, PlaneItem, Relations } from './next'
 import type { Pr } from './tickets'
 import {
@@ -192,19 +202,30 @@ async function pollPlane($: Engine, porcelain: string, listed: PilotTicket[], se
       if (list === undefined) return
       plane.items = { at: now, list }
     }
+    // Relations by priority, until one free item more than the rows: the spare
+    // takes a launched row's place. A failed read keeps the last relations
+    // known, else stops the reads there and lists what was read before it.
+    const excluded = excludedIds(listed, paths, sessions, launched)
+    const read: PlaneItem[] = []
     const relations: Record<string, Relations> = {}
-    for (const item of plane.items.list) {
+    let free = 0
+    for (const item of readOrder(plane.items.list, excluded, config.project)) {
+      if (free > LIMIT) break
       let kept = plane.relations.get(item.id)
       if (!kept || now - kept.at >= RELATIONS_MS) {
         const fresh = await readRelations($, plane.project, item.id)
-        if (fresh === undefined) return
-        kept = { at: now, relations: fresh }
-        plane.relations.set(item.id, kept)
+        if (fresh !== undefined) {
+          kept = { at: now, relations: fresh }
+          plane.relations.set(item.id, kept)
+        }
       }
+      if (!kept) break
+      read.push(item)
       relations[item.id] = kept.relations
+      if (!isBlocked(kept.relations, plane.states)) free += 1
     }
     known = {
-      pool: candidates(plane.items.list, relations, plane.states, config.project),
+      pool: candidates(read, relations, plane.states, config.project),
       tickets: listed,
       paths,
       sessions,

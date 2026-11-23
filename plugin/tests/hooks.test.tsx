@@ -1170,3 +1170,47 @@ test('pilot-next AC9 — Actualiser reads the work items, the states and every r
   expect(w.related('w2')).toHaveLength(2)
   await ui.unmount()
 })
+
+test('lazy relations — the relations are read by priority, only until 6 free items are found, and rank the 5 rows', async ($, on) => {
+  const items = Array.from({ length: 20 }, (_, i) => planeItem(i + 1))
+  items[14] = planeItem(15, { priority: 'urgent' })
+  items[11] = planeItem(12, { priority: 'high' })
+  const w = await planeWorld(on, { ...CONFIGURED, items })
+  w.plane.relations = {
+    w15: { blocking: [], blocked_by: [{ id: 'w3', sequence_id: 3, project_id: 'proj-1', state_id: 's-unstarted' }] },
+    w3: { blocking: [{ id: 'w15', sequence_id: 15, project_id: 'proj-1', state_id: 's-unstarted' }], blocked_by: [] },
+  }
+
+  await loadPilot($, w)
+
+  const read = w.listed(PLANE_RELATIONS).map(e => e.workitem_id)
+  expect(read).toEqual(['w15', 'w12', 'w1', 'w2', 'w3', 'w4', 'w5'])
+  expect(w.nextIds()).toEqual(['SPOTIME-12', 'SPOTIME-3', 'SPOTIME-1', 'SPOTIME-2', 'SPOTIME-4'])
+})
+
+test('lazy relations — a relations read failing on the first poll: the items read before it are listed, the rest comes at the next poll', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+  w.plane.fail = e =>
+    e.tool === PLANE_RELATIONS && e.workitem_id === 'w3'
+      ? { result: 'error', text: 'rate limited', isError: true }
+      : undefined
+
+  await loadPilot($, w)
+  expect(w.nextIds()).toEqual(['SPOTIME-1', 'SPOTIME-2'])
+
+  w.plane.fail = () => undefined
+  await w.clock.advance(10_000)
+  expect(w.nextIds()).toEqual(['SPOTIME-1', 'SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5'])
+})
+
+test('lazy relations — an item already at work costs no relations read', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+  w.app.sessions = JSON.stringify([
+    { sessionId: 's9', cwd: '/elsewhere', title: 'SPOTIME-1 — Ticket 1', isArchived: false },
+  ])
+
+  await loadPilot($, w)
+
+  expect(w.related('w1')).toHaveLength(0)
+  expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
+})
