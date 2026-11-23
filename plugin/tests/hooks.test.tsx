@@ -80,6 +80,8 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
     sessions: '[]',
     openAnswer: (): any => ({ result: {}, text: 'ok' }),
     askAnswer: async (): Promise<any> => ({ result: {} }),
+    // pilot-next: what the app answers to any other tool; undefined falls to the default.
+    otherTool: (_e: any): any => undefined,
     // What `get_session self` answers: the app's id of the calling session.
     selfAnswer: (): any => ({
       result: {},
@@ -91,6 +93,8 @@ function world(on: any, who = { id: 'A', cwd: '/work/a' }) {
     if (e.tool === OPEN_TOOL) return app.openAnswer()
     if (e.tool === 'AskUserQuestion') return app.askAnswer()
     if (e.tool === GET_SESSION) return app.selfAnswer()
+    const other = app.otherTool(e)
+    if (other !== undefined) return other
 
     return { result: {}, text: e.tool === LIST_SESSIONS ? app.sessions : '[]' }
   })
@@ -657,4 +661,423 @@ test('pilot-gitlab AC3 — a shipped ticket on github.com still runs `gh pr view
 
   expect(gh.some(argv => argv.slice(0, 3).join(' ') === 'gh pr view' && argv[3] === branch)).toBe(true)
   expect(glab).toHaveLength(0)
+})
+
+// pilot-next: the next tickets to launch, read from Plane.
+//
+// Contract these tests fix beyond the spec:
+// - `rstack.next` is the array stored under the key `next` of `$.state`; each
+//   row has { id, name, summary?, unblocks, workitemId, updatedAt };
+// - the polling pane reads `<main checkout>/.rstack/pilot.json` through `$.fs`
+//   (`.rs/` when `.rstack/` does not exist), the main checkout being the first
+//   worktree of `git worktree list --porcelain`;
+// - Plane tools take `{ tool, action: 'list', ... }`, answer a JSON text, and
+//   `workitem_relation list` answers `{ dependencies: { blocking, blocked_by } }`;
+// - the `Lancer` Buttons come in the order of `rstack.next`.
+const PLANE_PROJECT = 'mcp__plane__project'
+const PLANE_STATE = 'mcp__plane__state'
+const PLANE_ITEMS = 'mcp__plane__workitem'
+const PLANE_RELATIONS = 'mcp__plane__workitem_relation'
+const START_SESSION = 'mcp__ccd_session__start_session'
+
+const MAIN = '/work/main'
+const PLANE_CONFIG = JSON.stringify({ plane: { project: 'SPOTIME' } })
+const CONFIGURED = { files: { [`${MAIN}/.rstack/pilot.json`]: PLANE_CONFIG } }
+const USAGE = {
+  input_tokens: 1,
+  output_tokens: 1,
+  cache_read_input_tokens: 0,
+  cache_creation_input_tokens: 0,
+}
+const SUMMARY = 'Un résumé en une ligne.'
+const ANSWERED = () => ({ isAnswered: true, text: SUMMARY, usage: USAGE })
+
+const planeItem = (seq: number, over: Record<string, unknown> = {}) => ({
+  id: `w${seq}`,
+  name: `Ticket ${seq}`,
+  sequence_id: seq,
+  priority: 'none',
+  state: { group: 'unstarted' },
+  is_draft: false,
+  updated_at: '2026-11-20T10:00:00Z',
+  description_stripped: `Description of ticket ${seq}.`,
+  type_id: null,
+  ...over,
+})
+
+const PLANE_STATES = [
+  { id: 's-backlog', group: 'backlog' },
+  { id: 's-unstarted', group: 'unstarted' },
+  { id: 's-started', group: 'started' },
+  { id: 's-done', group: 'completed' },
+  { id: 's-cancel', group: 'cancelled' },
+]
+
+async function planeWorld(
+  on: any,
+  o: {
+    files?: Record<string, string>
+    dirs?: string[]
+    items?: any[]
+  } = {},
+) {
+  const w = world(on)
+  const files = o.files ?? {}
+  const dirs = o.dirs ?? [`${MAIN}/.rstack`]
+  const state = new Map<string, unknown>()
+  const writes: string[] = []
+  let version = 0
+  on('state.get', (_: any, e: any) => ({ value: { value: state.get(e.key), version } }))
+  on('state.set', (_: any, e: any) => {
+    state.set(e.key, JSON.parse(JSON.stringify(e.value)))
+    writes.push(e.key)
+    version += 1
+
+    return { value: { isSet: true, version } }
+  })
+  on('fs.exists', (_: any, e: any) => ({
+    value:
+      dirs.includes(e.path) ||
+      e.path in files ||
+      Object.keys(files).some(f => f.startsWith(`${e.path}/`)),
+  }))
+  on('fs.list', () => ({ value: [] }))
+  on('fs.read', (_: any, e: any) => {
+    if (e.path in files) return { value: files[e.path] }
+    throw new Error(`ENOENT ${e.path}`)
+  })
+  w.app.processAnswer = argv =>
+    argv[0] === 'git'
+      ? {
+          ...PROCESS_OK,
+          stdout: [MAIN, '/work/a']
+            .map(
+              p => `worktree ${p}\nHEAD ${'0'.repeat(40)}\nbranch refs/heads/${p.slice(1)}\n`,
+            )
+            .join('\n'),
+        }
+      : PROCESS_OK
+
+  const plane = {
+    items: o.items ?? [planeItem(1), planeItem(2)],
+    relations: {} as Record<string, { blocking: any[]; blocked_by: any[] }>,
+    calls: [] as any[],
+    // An answer to put in place of Plane's, for the call asked.
+    fail: (_e: any): any => undefined,
+    start: (_e: any): any => ({ result: {}, text: '{}' }),
+  }
+  const ok = (body: unknown) => ({ result: {}, text: JSON.stringify(body) })
+  w.app.otherTool = (e: any) => {
+    if (e.tool === START_SESSION) return plane.start(e)
+    if (!String(e.tool).startsWith('mcp__plane__')) return undefined
+    plane.calls.push(e)
+    const failed = plane.fail(e)
+    if (failed !== undefined) return failed
+    if (e.tool === PLANE_PROJECT)
+      return ok({
+        results: [{ id: 'proj-1', identifier: 'SPOTIME', name: 'Spotime' }],
+        next_page_results: false,
+      })
+    if (e.tool === PLANE_STATE) return ok({ results: PLANE_STATES, next_page_results: false })
+    if (e.tool === PLANE_ITEMS)
+      return ok({ results: plane.items, next_page_results: false })
+    if (e.tool === PLANE_RELATIONS)
+      return ok({
+        dependencies: plane.relations[e.workitem_id] ?? { blocking: [], blocked_by: [] },
+      })
+
+    return undefined
+  }
+
+  const model = { calls: [] as any[], answer: (_e: any): any => ANSWERED() }
+  on('model.complete', (_: any, e: any) => {
+    model.calls.push(e)
+
+    return model.answer(e)
+  })
+  const submits: any[] = []
+  on('prompt.submit', (_: any, e: any) => {
+    submits.push(e)
+
+    return { text: e.text }
+  })
+
+  return {
+    ...w,
+    plane,
+    model,
+    submits,
+    state,
+    writes,
+    nextRows: () => ((state.get('next') as any[] | undefined) ?? []),
+    nextIds: () => ((state.get('next') as any[] | undefined) ?? []).map(r => r.id),
+    started: () => w.seen.tools.filter(e => e.tool === START_SESSION),
+    listed: (tool: string) =>
+      plane.calls.filter(e => e.tool === tool && e.action === 'list'),
+    related: (id: string) =>
+      plane.calls.filter(
+        e => e.tool === PLANE_RELATIONS && e.action === 'list' && e.workitem_id === id,
+      ),
+  }
+}
+
+async function loadPilot($: any, w: { clock: any }) {
+  await slash($, 'pilot')
+  await w.clock.settle()
+}
+
+async function mountNext($: any, w: { seen: { opened: string[] } }) {
+  return $.ui.mount({
+    plugin: 'rstack',
+    surface: 'desktop',
+    component: 'Pane',
+    requestId: w.seen.opened[0]!,
+    props: PILOT_PANE_PROPS,
+  })
+}
+
+async function pressLabelled(ui: any, label: string) {
+  const buttons: any[] = await ui.findAll({ type: 'Button' })
+  const button = buttons.find(b => JSON.stringify(b).includes(label))
+  expect(button).toBeDefined()
+  await ui.press({ key: button.key })
+}
+
+const NO_CONFIG_CASES = [
+  { name: 'no pilot.json', files: {}, dirs: [`${MAIN}/.rstack`] },
+  { name: 'neither .rstack/ nor .rs/', files: {}, dirs: [] },
+  {
+    name: 'a pilot.json with no plane.project',
+    files: { [`${MAIN}/.rstack/pilot.json`]: '{}' },
+    dirs: [`${MAIN}/.rstack`],
+  },
+  {
+    name: 'only a .rs/pilot.json while .rstack/ exists',
+    files: { [`${MAIN}/.rs/pilot.json`]: PLANE_CONFIG },
+    dirs: [`${MAIN}/.rstack`],
+  },
+  {
+    name: 'a pilot.json in another worktree than the main checkout',
+    files: { '/work/a/.rstack/pilot.json': PLANE_CONFIG },
+    dirs: [`${MAIN}/.rstack`, '/work/a/.rstack'],
+  },
+] as const
+
+for (const c of NO_CONFIG_CASES) {
+  test(`pilot-next AC1 — ${c.name}: no Plane tool is called and rstack.next is empty`, async ($, on) => {
+    const w = await planeWorld(on, { files: { ...c.files }, dirs: [...c.dirs] })
+
+    await loadPilot($, w)
+    await w.clock.advance(120_000)
+
+    expect(w.seen.polls).toBeGreaterThan(0)
+    expect(w.writes).toContain('tickets')
+    expect(w.plane.calls).toHaveLength(0)
+    expect(w.nextRows()).toEqual([])
+  })
+}
+
+test('pilot-next AC1 — with .rs/pilot.json and no .rstack/, the config is read and Plane is asked', async ($, on) => {
+  const w = await planeWorld(on, {
+    files: { [`${MAIN}/.rs/pilot.json`]: PLANE_CONFIG },
+    dirs: [],
+  })
+
+  await loadPilot($, w)
+
+  expect(w.listed(PLANE_ITEMS).length).toBeGreaterThan(0)
+  expect(w.nextIds()).toEqual(['SPOTIME-1', 'SPOTIME-2'])
+})
+
+test('pilot-next AC2 — the work items read leaves epics out: its PQL filter holds NOT isEpic()', async ($, on) => {
+  const w = await planeWorld(on, CONFIGURED)
+
+  await loadPilot($, w)
+
+  const reads = w.listed(PLANE_ITEMS)
+  expect(reads.length).toBeGreaterThan(0)
+  for (const read of reads) expect(read.pql).toContain('NOT isEpic()')
+})
+
+test('pilot-next AC5 — a summary is asked from haiku once per (id, updated_at): not again for the same one, again for a changed one', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: [planeItem(1)] })
+
+  await loadPilot($, w)
+
+  expect(w.model.calls).toHaveLength(1)
+  expect(w.model.calls[0]).toMatchObject({ model: 'haiku' })
+  expect(w.model.calls[0].prompt).toContain('Ticket 1')
+  expect(w.model.calls[0].prompt).toContain('Description of ticket 1.')
+  expect(w.nextRows()[0]?.summary).toBe(SUMMARY)
+
+  await w.clock.advance(50_000)
+  expect(w.model.calls).toHaveLength(1)
+
+  w.plane.items = [planeItem(1, { updated_at: '2026-11-21T10:00:00Z' })]
+  await w.clock.advance(30_000)
+  expect(w.model.calls).toHaveLength(2)
+
+  await w.clock.advance(30_000)
+  expect(w.model.calls).toHaveLength(2)
+  expect(w.nextRows()[0]?.summary).toBe(SUMMARY)
+})
+
+test('pilot-next AC5 — a call that is not answered leaves the row without a summary and is made again at the next poll', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: [planeItem(1)] })
+  w.model.answer = () => ({
+    isAnswered: false,
+    reason: 'api-error',
+    status: 529,
+    error: 'overloaded',
+    usage: USAGE,
+  })
+
+  await loadPilot($, w)
+  expect(w.model.calls).toHaveLength(1)
+  expect(w.nextRows()).toHaveLength(1)
+  expect(w.nextRows()[0]?.summary).toBeUndefined()
+
+  await w.clock.advance(10_000)
+  expect(w.model.calls).toHaveLength(2)
+  expect(w.nextRows()[0]?.summary).toBeUndefined()
+
+  w.model.answer = ANSWERED
+  await w.clock.advance(10_000)
+  expect(w.model.calls).toHaveLength(3)
+  expect(w.nextRows()[0]?.summary).toBe(SUMMARY)
+
+  await w.clock.advance(10_000)
+  expect(w.model.calls).toHaveLength(3)
+})
+
+const SIX = [1, 2, 3, 4, 5, 6].map(n => planeItem(n))
+
+test('pilot-next AC6 — pressing Lancer starts the session once with the ticket, and the row leaves for the next candidate', async ($, on) => {
+  const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+  await loadPilot($, w)
+  expect(w.nextIds()).toEqual(['SPOTIME-1', 'SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5'])
+  const ui = await mountNext($, w)
+
+  await pressLabelled(ui, 'Lancer')
+  await w.clock.settle()
+
+  const started = w.started()
+  expect(started).toHaveLength(1)
+  expect(started[0]).toMatchObject({
+    initiation: 'user_asked',
+    context: 'fresh',
+    use_worktree: true,
+    branch_name: 'spotime-1',
+    title: 'SPOTIME-1 — Ticket 1',
+  })
+  expect(started[0].prompt.startsWith('/rs-plan SPOTIME-1 — Ticket 1')).toBe(true)
+  expect(started[0].prompt).toContain('Description of ticket 1.')
+  expect(started[0].background.length).toBeGreaterThanOrEqual(80)
+  expect(w.submits).toHaveLength(0)
+  expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
+
+  // Plane still lists it unstarted: the pane remembers it was launched.
+  await w.clock.advance(120_000)
+  expect(w.nextIds()).not.toContain('SPOTIME-1')
+  expect(w.started()).toHaveLength(1)
+  await ui.unmount()
+})
+
+const REFUSALS = [
+  { name: 'denied', answer: { deny: 'Not allowed from a pane' }, reason: 'Not allowed from a pane' },
+  {
+    name: 'answering an error',
+    answer: { result: 'error', text: 'start_session blew up', isError: true },
+    reason: 'start_session blew up',
+  },
+] as const
+
+for (const refusal of REFUSALS) {
+  test(`pilot-next AC7 — start_session ${refusal.name}: the pilot session is asked to start it with the same prompt and told the refusal, and the row leaves`, async ($, on) => {
+    const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+    w.plane.start = () => refusal.answer
+    await loadPilot($, w)
+    const ui = await mountNext($, w)
+
+    await pressLabelled(ui, 'Lancer')
+    await w.clock.settle()
+
+    expect(w.started()).toHaveLength(1)
+    expect(w.submits).toHaveLength(1)
+    const text: string = w.submits[0].text
+    expect(text).toContain('/rs-plan SPOTIME-1 — Ticket 1')
+    expect(text).toContain('Description of ticket 1.')
+    expect(text).toContain(refusal.reason)
+    expect(w.nextIds()).toEqual(['SPOTIME-2', 'SPOTIME-3', 'SPOTIME-4', 'SPOTIME-5', 'SPOTIME-6'])
+    await ui.unmount()
+  })
+}
+
+const PLANE_FAILURES = [
+  { name: 'denied', answer: { deny: 'no' } },
+  { name: 'an error', answer: { result: 'error', text: 'boom', isError: true } },
+  { name: 'an unparsable answer', answer: { result: {}, text: '<html>not json</html>' } },
+] as const
+
+for (const failure of PLANE_FAILURES) {
+  test(`pilot-next AC8 — the work items read ${failure.name}: the last list stays in rstack.next and the poll goes on`, async ($, on) => {
+    const w = await planeWorld(on, { ...CONFIGURED, items: SIX })
+    await loadPilot($, w)
+    const before = w.nextRows()
+    expect(before).toHaveLength(5)
+    const polled = w.writes.filter(k => k === 'polledAt').length
+
+    w.plane.fail = e =>
+      e.tool === PLANE_ITEMS && e.action === 'list' ? failure.answer : undefined
+    await w.clock.advance(70_000)
+
+    expect(w.listed(PLANE_ITEMS).length).toBeGreaterThan(1)
+    expect(w.nextRows()).toEqual(before)
+    expect(w.writes.filter(k => k === 'polledAt').length).toBeGreaterThan(polled)
+  })
+}
+
+test('pilot-next AC9 — work items are read at most every 60 s, the states once, the relations of an item at most every 5 minutes', async ($, on) => {
+  const w = await planeWorld(on, CONFIGURED)
+  const reads = () => ({
+    items: w.listed(PLANE_ITEMS).length,
+    states: w.listed(PLANE_STATE).length,
+    first: w.related('w1').length,
+    second: w.related('w2').length,
+  })
+
+  await loadPilot($, w)
+  expect(reads()).toEqual({ items: 1, states: 1, first: 1, second: 1 })
+
+  await w.clock.advance(50_000)
+  expect(reads()).toEqual({ items: 1, states: 1, first: 1, second: 1 })
+
+  await w.clock.advance(20_000)
+  expect(reads()).toEqual({ items: 2, states: 1, first: 1, second: 1 })
+
+  await w.clock.advance(220_000)
+  expect(reads().states).toBe(1)
+  expect(reads().first).toBe(1)
+  expect(reads().second).toBe(1)
+
+  await w.clock.advance(30_000)
+  expect(reads().states).toBe(1)
+  expect(reads().first).toBe(2)
+  expect(reads().second).toBe(2)
+})
+
+test('pilot-next AC9 — Actualiser reads the work items, the states and every relation again at once', async ($, on) => {
+  const w = await planeWorld(on, CONFIGURED)
+  await loadPilot($, w)
+  const ui = await mountNext($, w)
+  await w.clock.set(3_000)
+
+  await pressLabelled(ui, 'Actualiser')
+  await w.clock.settle()
+
+  expect(w.listed(PLANE_ITEMS)).toHaveLength(2)
+  expect(w.listed(PLANE_STATE)).toHaveLength(2)
+  expect(w.related('w1')).toHaveLength(2)
+  expect(w.related('w2')).toHaveLength(2)
+  await ui.unmount()
 })
