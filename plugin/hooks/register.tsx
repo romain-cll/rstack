@@ -5,6 +5,7 @@ import {
   QUESTION_PREFIX,
   readFiles,
   readPlaneConfig,
+  takePlaneError,
   readPr,
   readProject,
   readQuestions,
@@ -61,6 +62,8 @@ const tickets = { plugin: 'rstack', key: 'tickets' } as const
 const polledAt = { plugin: 'rstack', key: 'polledAt' } as const
 const main = { plugin: 'rstack', key: 'main' } as const
 const nextKey = { plugin: 'rstack', key: 'next' } as const
+// Why `À lancer` is empty, shown in its place.
+const statusKey = { plugin: 'rstack', key: 'nextStatus' } as const
 
 // Per branch: the last `gh` or `glab` answer and when it was asked. A PR read MERGED or
 // CLOSED is final: it is not asked again.
@@ -139,7 +142,9 @@ async function poll($: Engine) {
   await $.state.set(main, worktreePaths(porcelain)[0]?.split('/').pop() ?? '')
   await $.state.set(tickets, JSON.parse(JSON.stringify(rows)))
   await $.state.set(polledAt, collectedAt)
-  await pollPlane($, porcelain, listed, sessions).catch(() => undefined)
+  await pollPlane($, porcelain, listed, sessions).catch(error =>
+    $.state.set(statusKey, `Plane : erreur du pilot (${String(error)})`),
+  )
 }
 
 // The summary of a candidate: kept per (id, updated_at), else asked from Haiku.
@@ -186,20 +191,24 @@ async function pollPlane($: Engine, porcelain: string, listed: PilotTicket[], se
   if (!config) {
     known = undefined
     await $.state.set(nextKey, [])
+    await $.state.set(statusKey, `Plane : pas de plane.project dans ${paths[0] ?? '?'}/.rstack/pilot.json`)
 
     return
   }
   if (planeBusy) return
   planeBusy = true
+  const stop = (why: string) => $.state.set(statusKey, `Plane : ${why}`)
   try {
     const now = await $.clock.now()
+    takePlaneError()
     plane.project ??= await readProject($, config.project)
-    if (plane.project === undefined) return
+    if (plane.project === undefined)
+      return await stop(takePlaneError() ?? `projet ${config.project} introuvable`)
     plane.states ??= await readStates($, plane.project)
-    if (plane.states === undefined) return
+    if (plane.states === undefined) return await stop(takePlaneError() ?? 'états illisibles')
     if (!plane.items || now - plane.items.at >= ITEMS_MS) {
       const list = await readWorkItems($, plane.project)
-      if (list === undefined) return
+      if (list === undefined) return await stop(takePlaneError() ?? 'tickets illisibles')
       plane.items = { at: now, list }
     }
     // Relations by priority, until one free item more than the rows: the spare
@@ -230,6 +239,12 @@ async function pollPlane($: Engine, porcelain: string, listed: PilotTicket[], se
       paths,
       sessions,
     }
+    const relationError = takePlaneError()
+    await $.state.set(
+      statusKey,
+      `Plane : ${plane.items.list.length} tickets ouverts, ${read.length} lus, ${free} libres` +
+        (relationError ? ` — ${relationError}` : ''),
+    )
     await publishNext($)
   } finally {
     planeBusy = false
@@ -282,7 +297,11 @@ async function startPolling($: Engine, id: string) {
     }
     await poll($)
   }
-  timer = $.clock.every(POLL_MS, () => void tick().catch(() => undefined))
+  timer = $.clock.every(POLL_MS, () =>
+    void tick().catch(error =>
+      $.state.set(statusKey, `Pilot : le poll a échoué (${String(error)})`).catch(() => undefined),
+    ),
+  )
   void tick().catch(() => undefined)
 }
 
@@ -353,6 +372,9 @@ export const register: Register = on => {
     const upNext = ((await $.state.get(nextKey)).value ?? []).filter(
       row => Array.isArray(row?.unblocks),
     )
+    // A stub answering one value to every key may give a non-string.
+    const kept: unknown = (await $.state.get(statusKey)).value
+    const status = typeof kept === 'string' ? kept : 'Plane : pas encore lu'
     const folder = (await $.state.get(main)).value
     const collected = (await $.state.get(polledAt)).value
     const now = await $.clock.now()
@@ -605,6 +627,16 @@ export const register: Register = on => {
               )}
             </Box>
           ))}
+        {upNext.length === 0 && (
+          <Box flexDirection="column" gap={1}>
+            <Text size="caption" dimColor>
+              {SECTION_TITLES.next}
+            </Text>
+            <Text size="caption" dimColor>
+              {status}
+            </Text>
+          </Box>
+        )}
         {upNext.length > 0 && (
           <Box flexDirection="column" gap={1}>
             <Text size="caption" dimColor>

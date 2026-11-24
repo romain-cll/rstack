@@ -28,6 +28,8 @@ What it reads, through the Plane MCP: the project id (`project list`) and its st
 
 A candidate is a backlog or unstarted item, not a draft, whose every `blocked_by` item is completed or cancelled. The rows come by priority (urgent, high, medium, low, none), then by the number of open items they block (most first, among the items whose relations were read), then by sequence number. A ticket whose id (`SPOTIME-42`, any case) is in a spec title, a worktree path, the title of a session not archived, or was launched from the pane since it loaded, is left out and the next one takes its place.
 
+While `À lancer` is empty, it shows why in one line: no `plane.project` in the config, the Plane read that failed with its reason (a refusal, an error, an unexpected answer), the project not found, or the count of open, read and free tickets.
+
 Each row shows its id, its name, a one-line summary, and `débloque <ids>`. The summary is written by Haiku (`$.model.complete`) from the name and the description, kept per id and `updated_at`; when the call is not answered, the row has none and the call is made again at the next poll.
 
 `Lancer` starts a session through `start_session` (a fresh worktree on the lowercased id) whose prompt starts with `/rs-plan <ID> — <name>`, followed by the ticket's description. The row leaves at once. When the app refuses (denied, or an error), the pilot session is asked to start the session itself and to report the refusal as a pane defect.

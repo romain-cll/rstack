@@ -76,6 +76,6 @@ export type PilotNext = {
 
 declare module 'claude-code' {
   interface PluginState {
-    rstack: { tickets: PilotRow[]; main?: string; polledAt?: number; next: PilotNext[] }
+    rstack: { tickets: PilotRow[]; main?: string; polledAt?: number; next: PilotNext[]; nextStatus?: string }
   }
 }
